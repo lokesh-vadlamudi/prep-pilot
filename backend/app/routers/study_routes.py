@@ -9,20 +9,20 @@ from sqlmodel import Session
 
 from ..auth import RequireUser
 from ..db import get_session
-from ..models import Card, Concept
+from ..models import Card, Concept, User
 from .. import service, tutor
 
 router = APIRouter(prefix="/api", tags=["study"], dependencies=[RequireUser])
 
 
 @router.get("/today")
-def today(session: Session = Depends(get_session)):
-    return service.build_daily_plan(session)
+def today(user: User = RequireUser, session: Session = Depends(get_session)):
+    return service.build_daily_plan(session, user.id)
 
 
 @router.get("/card/{card_id}")
-def card_detail(card_id: int, session: Session = Depends(get_session)):
-    detail = service.get_card_detail(session, card_id)
+def card_detail(card_id: int, user: User = RequireUser, session: Session = Depends(get_session)):
+    detail = service.get_card_detail(session, card_id, user.id)
     if not detail:
         raise HTTPException(404, "Card not found")
     return detail
@@ -35,9 +35,9 @@ class SubmitIn(BaseModel):
 
 
 @router.post("/submit")
-async def submit(body: SubmitIn, session: Session = Depends(get_session)):
+async def submit(body: SubmitIn, user: User = RequireUser, session: Session = Depends(get_session)):
     card = session.get(Card, body.card_id)
-    if not card:
+    if not card or card.user_id != user.id:
         raise HTTPException(404, "Card not found")
     concept = session.get(Concept, card.concept_id)
 
@@ -66,17 +66,17 @@ async def submit(body: SubmitIn, session: Session = Depends(get_session)):
 
 
 @router.get("/progress")
-def progress(session: Session = Depends(get_session)):
-    return service.progress_stats(session)
+def progress(user: User = RequireUser, session: Session = Depends(get_session)):
+    return service.progress_stats(session, user.id)
 
 
 @router.get("/books")
-def books(session: Session = Depends(get_session)):
-    return service.book_progress(session)
+def books(user: User = RequireUser, session: Session = Depends(get_session)):
+    return service.book_progress(session, user.id)
 
 
 @router.get("/topics")
-def topics(session: Session = Depends(get_session)):
+def topics(user: User = RequireUser, session: Session = Depends(get_session)):
     from sqlmodel import select
     concepts = session.exec(select(Concept).order_by(Concept.track, Concept.id)).all()
     return [
@@ -87,12 +87,13 @@ def topics(session: Session = Depends(get_session)):
 
 
 @router.get("/topic/{concept_id}")
-def topic(concept_id: int, session: Session = Depends(get_session)):
+def topic(concept_id: int, user: User = RequireUser, session: Session = Depends(get_session)):
     from sqlmodel import select
     c = session.get(Concept, concept_id)
     if not c:
         raise HTTPException(404, "Not found")
-    cards = session.exec(select(Card).where(Card.concept_id == concept_id)).all()
+    cards = session.exec(select(Card).where(
+        Card.concept_id == concept_id, Card.user_id == user.id)).all()
     return {
         "id": c.id, "track": c.track, "title": c.title, "difficulty": c.difficulty,
         "tags": c.tags, "summary": c.summary, "lesson_md": c.lesson_md, "source": c.source,

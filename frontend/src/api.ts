@@ -33,11 +33,13 @@ export type SubmitResult = {
 
 export const api = {
   needsSetup: () => req("/api/needs-setup"),
-  setup: (password: string) =>
-    fetch("/api/setup", { method: "POST", headers: json, body: JSON.stringify({ password }) }),
+  setup: (password: string, username = "") =>
+    fetch("/api/setup", { method: "POST", headers: json, body: JSON.stringify({ password, username }) }),
   me: () => req("/api/auth/me"),
   login: (username: string, password: string) =>
     fetch("/api/auth/login", { method: "POST", headers: json, body: JSON.stringify({ username, password }) }),
+  register: (username: string, password: string, invite_code: string) =>
+    fetch("/api/auth/register", { method: "POST", headers: json, body: JSON.stringify({ username, password, invite_code }) }),
   logout: () => req("/api/auth/logout", { method: "POST" }),
 
   today: (): Promise<Plan> => req("/api/today"),

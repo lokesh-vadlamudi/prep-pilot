@@ -1,4 +1,4 @@
-"""Single-user authentication with a signed session cookie."""
+"""Multi-user authentication with a signed session cookie."""
 from __future__ import annotations
 
 import secrets
@@ -6,8 +6,11 @@ import secrets
 import bcrypt
 from fastapi import Depends, HTTPException, Request, Response, status
 from itsdangerous import BadSignature, URLSafeTimedSerializer
+from sqlmodel import Session, select
 
 from .config import settings, BASE_DIR
+from .db import engine
+from .models import User
 
 COOKIE = "prep_session"
 MAX_AGE = 60 * 60 * 24 * 30  # 30 days
@@ -20,6 +23,14 @@ def _ensure_secret() -> str:
     settings.secret_key = secrets.token_urlsafe(48)
     _append_env("SECRET_KEY", settings.secret_key)
     return settings.secret_key
+
+
+def ensure_invite_code() -> str:
+    """Shared code new users must present to register (admin hands it out)."""
+    if not settings.invite_code:
+        settings.invite_code = secrets.token_urlsafe(9)
+        _append_env("INVITE_CODE", settings.invite_code)
+    return settings.invite_code
 
 
 def _append_env(key: str, value: str) -> None:
@@ -42,25 +53,21 @@ def _verify(pw: str, hashed: str) -> bool:
         return False
 
 
-def set_password(pw: str) -> None:
-    settings.password_hash = hash_password(pw)
-    _append_env("PASSWORD_HASH", settings.password_hash)
-
-
 def _serializer() -> URLSafeTimedSerializer:
     return URLSafeTimedSerializer(_ensure_secret(), salt="prep-session")
 
 
-def verify_login(username: str, password: str) -> bool:
-    if username != settings.username or not settings.password_hash:
+def verify_login(session: Session, username: str, password: str) -> User | None:
+    user = session.exec(select(User).where(User.username == username)).first()
+    if not user or not user.password_hash:
         # Dummy check to keep timing roughly constant against user enumeration.
         _verify(password, hash_password("x"))
-        return False
-    return _verify(password, settings.password_hash)
+        return None
+    return user if _verify(password, user.password_hash) else None
 
 
-def issue_session(response: Response) -> None:
-    token = _serializer().dumps({"u": settings.username})
+def issue_session(response: Response, user: User) -> None:
+    token = _serializer().dumps({"uid": user.id, "u": user.username})
     response.set_cookie(
         COOKIE, token, max_age=MAX_AGE, httponly=True, samesite="lax"
     )
@@ -70,7 +77,7 @@ def clear_session(response: Response) -> None:
     response.delete_cookie(COOKIE)
 
 
-def current_user(request: Request) -> str:
+def current_user(request: Request) -> User:
     token = request.cookies.get(COOKIE)
     if not token:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
@@ -78,7 +85,22 @@ def current_user(request: Request) -> str:
         data = _serializer().loads(token, max_age=MAX_AGE)
     except BadSignature:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid session")
-    return data["u"]
+    with Session(engine) as session:
+        user = None
+        if data.get("uid") is not None:
+            user = session.get(User, data["uid"])
+        elif data.get("u"):  # legacy single-user cookie from before multi-user
+            user = session.exec(select(User).where(User.username == data["u"])).first()
+        if not user:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Unknown user")
+        return user
 
 
 RequireUser = Depends(current_user)
+
+
+def admin_user(session: Session) -> User | None:
+    """The primary account — target of legacy data and the reminder brief."""
+    return session.exec(
+        select(User).where(User.is_admin == True).order_by(User.id)  # noqa: E712
+    ).first()

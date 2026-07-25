@@ -48,25 +48,44 @@ app.include_router(mock_routes.router)
 app.include_router(roadmap_routes.router)
 
 
-# ---- First-run password setup (only allowed while no password is set) ----
+# ---- First-run setup (only allowed while no account exists) ----
 class SetupIn(BaseModel):
     password: str
+    username: str = ""
+
+
+def _no_users() -> bool:
+    from sqlmodel import select
+    from .models import User
+    with Session(engine) as session:
+        return session.exec(select(User)).first() is None
 
 
 @app.get("/api/needs-setup")
 def needs_setup():
-    return {"needs_setup": not bool(settings.password_hash), "username": settings.username}
+    return {"needs_setup": _no_users(), "username": settings.username}
 
 
 @app.post("/api/setup")
 def setup(body: SetupIn, response: Response):
-    if settings.password_hash:
+    from .models import Settings as UserSettings, User
+    if not _no_users():
         return Response(status_code=409)  # already configured
     if len(body.password) < 6:
         return Response(status_code=400)
-    auth.set_password(body.password)
-    auth.issue_session(response)
-    return {"ok": True}
+    username = (body.username.strip().lower() or settings.username)
+    with Session(engine) as session:
+        user = User(username=username, password_hash=auth.hash_password(body.password),
+                    is_admin=True)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        session.add(UserSettings(user_id=user.id))
+        session.commit()
+        from . import service
+        service.sync_user_cards(session, user.id)
+        auth.issue_session(response, user)
+    return {"ok": True, "username": username}
 
 
 @app.get("/api/health")

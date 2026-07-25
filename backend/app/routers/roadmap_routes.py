@@ -13,10 +13,10 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session, select, func
 
-from ..auth import RequireUser, _append_env
+from ..auth import RequireUser, _append_env, admin_user
 from ..config import settings
 from ..db import get_session
-from ..models import Card, DayLog, Problem, ProblemStatus, Settings
+from ..models import Card, DayLog, Problem, ProblemStatus, Settings, User
 from ..content import roadmap as rm
 from .problem_routes import pick_problem_of_the_day
 from .. import service
@@ -24,11 +24,12 @@ from .. import service
 router = APIRouter(prefix="/api/roadmap", tags=["roadmap"])
 
 
-def _phase_progress(session: Session) -> list[dict]:
+def _phase_progress(session: Session, user_id: int) -> list[dict]:
     """Solved/total problems for each leg's categories (empty = all)."""
     problems = session.exec(select(Problem)).all()
     solved_ids = {s.problem_id for s in session.exec(
-        select(ProblemStatus).where(ProblemStatus.status == "solved")).all()}
+        select(ProblemStatus).where(ProblemStatus.user_id == user_id,
+                                    ProblemStatus.status == "solved")).all()}
     out = []
     for ph in rm.PHASES:
         cats = set(ph["categories"])
@@ -40,11 +41,11 @@ def _phase_progress(session: Session) -> list[dict]:
     return out
 
 
-@router.get("", dependencies=[RequireUser])
-def roadmap(session: Session = Depends(get_session)):
+@router.get("")
+def roadmap(user: User = RequireUser, session: Session = Depends(get_session)):
     today = date.today()
     cur = rm.phase_index(today)
-    progress = _phase_progress(session)
+    progress = _phase_progress(session, user.id)
     phases = []
     for i, ph in enumerate(rm.PHASES):
         start, end = rm.phase_range(i)
@@ -90,30 +91,37 @@ def _require_key(request: Request) -> None:
 @router.get("/brief")
 def brief(request: Request, session: Session = Depends(get_session)):
     _require_key(request)
+    # The brief is the admin's (the reminder cron predates multi-user).
+    owner = admin_user(session)
+    if not owner:
+        raise HTTPException(503, "No admin account yet")
     today = date.today()
     cur = rm.phase_index(today)
     ph = rm.PHASES[cur]
 
     due_reviews = session.exec(
         select(func.count()).select_from(Card)
-        .where(Card.introduced == True, Card.due_date <= today)  # noqa: E712
+        .where(Card.user_id == owner.id,
+               Card.introduced == True, Card.due_date <= today)  # noqa: E712
     ).one()
 
-    app_settings = session.get(Settings, 1)
+    app_settings = session.exec(
+        select(Settings).where(Settings.user_id == owner.id)).first()
     target = app_settings.daily_problem_target if app_settings else 2
     solved_today = session.exec(
         select(func.count()).select_from(ProblemStatus)
-        .where(ProblemStatus.status == "solved",
+        .where(ProblemStatus.user_id == owner.id, ProblemStatus.status == "solved",
                func.date(ProblemStatus.last_touched) == today.isoformat())
     ).one()
 
     week_ago = today - timedelta(days=6)
-    logs = session.exec(select(DayLog).where(DayLog.day >= week_ago)).all()
+    logs = session.exec(select(DayLog).where(
+        DayLog.user_id == owner.id, DayLog.day >= week_ago)).all()
     week_reviews = sum(l.reviews_done for l in logs)
     week_coding = sum(l.coding_solved for l in logs)
 
-    reason, potd = pick_problem_of_the_day(session)
-    prog = _phase_progress(session)[cur]
+    reason, potd = pick_problem_of_the_day(session, owner.id)
+    prog = _phase_progress(session, owner.id)[cur]
 
     return {
         "date": today.isoformat(),
@@ -121,7 +129,7 @@ def brief(request: Request, session: Session = Depends(get_session)):
         "month": cur + 1, "callsign": ph["callsign"], "phase": ph["name"],
         "mission": rm.today_mission(today),
         "stats": {
-            "due_reviews": due_reviews, "streak": service.current_streak(session),
+            "due_reviews": due_reviews, "streak": service.current_streak(session, owner.id),
             "solved_today": solved_today, "daily_target": target,
             "week_reviews": week_reviews, "week_coding": week_coding,
             "phase_solved": prog["solved"], "phase_total": prog["total"],

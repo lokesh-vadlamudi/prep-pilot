@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 
 from ..auth import RequireUser
 from ..db import get_session
-from ..models import MockSession
+from ..models import MockSession, User
 from .. import mock
 
 router = APIRouter(prefix="/api/mock", tags=["mock"], dependencies=[RequireUser])
@@ -22,6 +22,13 @@ def _load(m: MockSession) -> list[dict]:
     return json.loads(m.transcript_json) if m.transcript_json else []
 
 
+def _owned(session: Session, sid: int, user: User) -> MockSession:
+    m = session.get(MockSession, sid)
+    if not m or m.user_id != user.id:
+        raise HTTPException(404, "Session not found")
+    return m
+
+
 class StartIn(BaseModel):
     kind: str = "coding"
     topic: str = ""
@@ -30,13 +37,13 @@ class StartIn(BaseModel):
 
 
 @router.post("/start")
-async def start(body: StartIn, session: Session = Depends(get_session)):
+async def start(body: StartIn, user: User = RequireUser, session: Session = Depends(get_session)):
     if body.kind not in VALID_KINDS:
         raise HTTPException(400, "Invalid interview kind")
     opening = await mock.open_interview(body.kind, body.topic, body.difficulty)
     transcript = [{"role": "interviewer", "content": opening}]
     m = MockSession(
-        kind=body.kind, topic=body.topic, difficulty=body.difficulty,
+        user_id=user.id, kind=body.kind, topic=body.topic, difficulty=body.difficulty,
         duration_min=body.duration_min, transcript_json=json.dumps(transcript),
     )
     session.add(m)
@@ -51,10 +58,9 @@ class ReplyIn(BaseModel):
 
 
 @router.post("/{sid}/reply")
-async def reply(sid: int, body: ReplyIn, session: Session = Depends(get_session)):
-    m = session.get(MockSession, sid)
-    if not m:
-        raise HTTPException(404, "Session not found")
+async def reply(sid: int, body: ReplyIn, user: User = RequireUser,
+                session: Session = Depends(get_session)):
+    m = _owned(session, sid, user)
     if m.status == "done":
         raise HTTPException(400, "This interview has ended")
     transcript = _load(m)
@@ -68,10 +74,8 @@ async def reply(sid: int, body: ReplyIn, session: Session = Depends(get_session)
 
 
 @router.post("/{sid}/finish")
-async def finish(sid: int, session: Session = Depends(get_session)):
-    m = session.get(MockSession, sid)
-    if not m:
-        raise HTTPException(404, "Session not found")
+async def finish(sid: int, user: User = RequireUser, session: Session = Depends(get_session)):
+    m = _owned(session, sid, user)
     transcript = _load(m)
     if m.status != "done":
         rubric = await mock.score(m.kind, m.topic, transcript)
@@ -84,8 +88,9 @@ async def finish(sid: int, session: Session = Depends(get_session)):
 
 
 @router.get("/history")
-def history(session: Session = Depends(get_session)):
-    rows = session.exec(select(MockSession).order_by(MockSession.started_at.desc()).limit(30)).all()
+def history(user: User = RequireUser, session: Session = Depends(get_session)):
+    rows = session.exec(select(MockSession).where(MockSession.user_id == user.id)
+                        .order_by(MockSession.started_at.desc()).limit(30)).all()
     out = []
     for m in rows:
         rubric = json.loads(m.rubric_json) if m.rubric_json else None
@@ -99,10 +104,8 @@ def history(session: Session = Depends(get_session)):
 
 
 @router.get("/{sid}")
-def get_session_detail(sid: int, session: Session = Depends(get_session)):
-    m = session.get(MockSession, sid)
-    if not m:
-        raise HTTPException(404, "Session not found")
+def get_session_detail(sid: int, user: User = RequireUser, session: Session = Depends(get_session)):
+    m = _owned(session, sid, user)
     return {
         "id": m.id, "kind": m.kind, "topic": m.topic, "duration_min": m.duration_min,
         "status": m.status, "transcript": _load(m),

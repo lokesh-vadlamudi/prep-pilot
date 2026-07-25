@@ -1,14 +1,23 @@
-"""Database models: the curriculum, spaced-repetition cards, and study history."""
+"""Database models: users, the curriculum, spaced-repetition cards, and study history."""
 from __future__ import annotations
 
 from datetime import datetime, date
 from typing import Optional
 
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, UniqueConstraint
 
 
 def utcnow() -> datetime:
     return datetime.utcnow()
+
+
+class User(SQLModel, table=True):
+    """An account. Content (concepts/problems) is shared; progress is per-user."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    password_hash: str = ""
+    is_admin: bool = False
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class Concept(SQLModel, table=True):
@@ -31,8 +40,13 @@ class Concept(SQLModel, table=True):
 
 
 class Card(SQLModel, table=True):
-    """A spaced-repetition question attached to a concept."""
+    """A spaced-repetition question attached to a concept.
+
+    user_id NULL = a content template; each user gets their own copy (with its
+    own SM-2 state), synced lazily from templates.
+    """
     id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, index=True, foreign_key="user.id")
     concept_id: int = Field(index=True, foreign_key="concept.id")
     kind: str = "mcq"                       # mcq | free | code
     prompt: str = ""
@@ -54,6 +68,7 @@ class Card(SQLModel, table=True):
 class Attempt(SQLModel, table=True):
     """One answered review — the raw learning-progress record."""
     id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, index=True, foreign_key="user.id")
     card_id: int = Field(index=True, foreign_key="card.id")
     concept_id: int = Field(index=True)
     track: str = ""
@@ -65,9 +80,11 @@ class Attempt(SQLModel, table=True):
 
 
 class DayLog(SQLModel, table=True):
-    """One row per calendar day the user studied — powers the streak."""
+    """One row per user per calendar day studied — powers the streak."""
+    __table_args__ = (UniqueConstraint("user_id", "day", name="ux_daylog_user_day"),)
     id: Optional[int] = Field(default=None, primary_key=True)
-    day: date = Field(index=True, unique=True)
+    user_id: Optional[int] = Field(default=None, index=True, foreign_key="user.id")
+    day: date = Field(index=True)
     reviews_done: int = 0
     new_learned: int = 0
     correct: int = 0
@@ -114,6 +131,7 @@ class ProblemHints(SQLModel, table=True):
 class MockSession(SQLModel, table=True):
     """A timed mock-interview session with the DGX as interviewer."""
     id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, index=True, foreign_key="user.id")
     kind: str = "coding"                    # coding | system_design | behavioral
     topic: str = ""                         # optional focus (e.g. "graphs", "design a chat app")
     difficulty: str = "senior"
@@ -126,17 +144,20 @@ class MockSession(SQLModel, table=True):
 
 
 class Settings(SQLModel, table=True):
-    """Single-row app settings (id always 1)."""
-    id: Optional[int] = Field(default=1, primary_key=True)
+    """Per-user app settings (one row per user)."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: Optional[int] = Field(default=None, index=True, foreign_key="user.id")
     daily_problem_target: int = 2
     goal_total: int = 150
     goal_date: Optional[date] = None
 
 
 class ProblemStatus(SQLModel, table=True):
-    """Per-problem progress: solved state, confidence, spaced revision."""
+    """Per-user, per-problem progress: solved state, confidence, spaced revision."""
+    __table_args__ = (UniqueConstraint("user_id", "problem_id", name="ux_status_user_problem"),)
     id: Optional[int] = Field(default=None, primary_key=True)
-    problem_id: int = Field(index=True, unique=True, foreign_key="problem.id")
+    user_id: Optional[int] = Field(default=None, index=True, foreign_key="user.id")
+    problem_id: int = Field(index=True, foreign_key="problem.id")
     status: str = "todo"                   # todo | attempted | solved
     confidence: int = 0                    # 0..3 self-rated recall
     notes: str = ""

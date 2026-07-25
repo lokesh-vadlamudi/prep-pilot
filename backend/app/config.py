@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     secret_key: str = ""
     # Shared key for /api/roadmap/brief (Alfred's reminder cron). Auto-generated.
     reminder_key: str = ""
+    # Code new users must present to register. Auto-generated.
+    invite_code: str = ""
 
     # --- LLM brain (any ollama endpoint; set OLLAMA_URL in .env) ---
     ollama_url: str = "http://localhost:11434"

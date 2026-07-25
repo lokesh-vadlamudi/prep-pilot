@@ -10,7 +10,7 @@ from sqlmodel import Session, select, func
 
 from ..auth import RequireUser
 from ..db import get_session
-from ..models import Problem, ProblemStatus, ProblemHarness, ProblemHints, Settings
+from ..models import Problem, ProblemStatus, ProblemHarness, ProblemHints, Settings, User
 from ..content.neetcode150 import CATEGORY_ORDER
 from ..content.cheatsheets import CHEATSHEETS, cheatsheet_for
 from .. import tutor, executor, service
@@ -21,10 +21,11 @@ router = APIRouter(prefix="/api/problems", tags=["problems"], dependencies=[Requ
 _REVISIT = {0: 3, 1: 7, 2: 21, 3: 60}
 
 
-def _status_for(session: Session, pid: int) -> ProblemStatus:
-    st = session.exec(select(ProblemStatus).where(ProblemStatus.problem_id == pid)).first()
+def _status_for(session: Session, user_id: int, pid: int) -> ProblemStatus:
+    st = session.exec(select(ProblemStatus).where(
+        ProblemStatus.user_id == user_id, ProblemStatus.problem_id == pid)).first()
     if not st:
-        st = ProblemStatus(problem_id=pid)
+        st = ProblemStatus(user_id=user_id, problem_id=pid)
         session.add(st)
         session.commit()
         session.refresh(st)
@@ -32,9 +33,10 @@ def _status_for(session: Session, pid: int) -> ProblemStatus:
 
 
 @router.get("")
-def list_problems(session: Session = Depends(get_session)):
+def list_problems(user: User = RequireUser, session: Session = Depends(get_session)):
     problems = session.exec(select(Problem).order_by(Problem.order_idx)).all()
-    statuses = {s.problem_id: s for s in session.exec(select(ProblemStatus)).all()}
+    statuses = {s.problem_id: s for s in session.exec(
+        select(ProblemStatus).where(ProblemStatus.user_id == user.id)).all()}
     solved = sum(1 for s in statuses.values() if s.status == "solved")
     items = []
     for p in problems:
@@ -66,7 +68,7 @@ def cheatsheet(category: str):
     return {"category": category, **cs}
 
 
-def pick_problem_of_the_day(session: Session) -> tuple[str, Problem | None]:
+def pick_problem_of_the_day(session: Session, user_id: int) -> tuple[str, Problem | None]:
     """A due revision if any; else the next unsolved, preferring the current
     flight-plan leg's categories; else any unsolved."""
     from ..content import roadmap as rm
@@ -75,14 +77,16 @@ def pick_problem_of_the_day(session: Session) -> tuple[str, Problem | None]:
     # 1) a solved problem due for revision
     due = session.exec(
         select(Problem).join(ProblemStatus, ProblemStatus.problem_id == Problem.id)
-        .where(ProblemStatus.status == "solved", ProblemStatus.revisit_date <= today)
+        .where(ProblemStatus.user_id == user_id,
+               ProblemStatus.status == "solved", ProblemStatus.revisit_date <= today)
         .order_by(ProblemStatus.revisit_date)
     ).first()
     if due:
         return "revision", due
     # 2) next unsolved (no status row, or status != solved)
     solved_ids = [s.problem_id for s in session.exec(
-        select(ProblemStatus).where(ProblemStatus.status == "solved")).all()]
+        select(ProblemStatus).where(ProblemStatus.user_id == user_id,
+                                    ProblemStatus.status == "solved")).all()]
     q = select(Problem).order_by(Problem.order_idx)
     if solved_ids:
         q = q.where(Problem.id.notin_(solved_ids))  # type: ignore[attr-defined]
@@ -96,9 +100,9 @@ def pick_problem_of_the_day(session: Session) -> tuple[str, Problem | None]:
 
 
 @router.get("/of-the-day")
-def problem_of_the_day(session: Session = Depends(get_session)):
+def problem_of_the_day(user: User = RequireUser, session: Session = Depends(get_session)):
     """Pick one problem for today (revision > current leg > next unsolved)."""
-    reason, due = pick_problem_of_the_day(session)
+    reason, due = pick_problem_of_the_day(session, user.id)
     if not due:
         return {"problem": None}
     return {"reason": reason, "problem": {
@@ -108,11 +112,11 @@ def problem_of_the_day(session: Session = Depends(get_session)):
 
 
 @router.get("/{pid}")
-def get_problem(pid: int, session: Session = Depends(get_session)):
+def get_problem(pid: int, user: User = RequireUser, session: Session = Depends(get_session)):
     p = session.get(Problem, pid)
     if not p:
         raise HTTPException(404, "Problem not found")
-    st = _status_for(session, pid)
+    st = _status_for(session, user.id, pid)
     return {
         "id": p.id, "slug": p.slug, "title": p.title, "category": p.category,
         "difficulty": p.difficulty, "url": p.url, "blurb": p.blurb, "pattern": p.pattern,
@@ -141,11 +145,12 @@ class StatusIn(BaseModel):
 
 
 @router.post("/{pid}/status")
-def set_status(pid: int, body: StatusIn, session: Session = Depends(get_session)):
+def set_status(pid: int, body: StatusIn, user: User = RequireUser,
+               session: Session = Depends(get_session)):
     p = session.get(Problem, pid)
     if not p:
         raise HTTPException(404, "Problem not found")
-    st = _status_for(session, pid)
+    st = _status_for(session, user.id, pid)
     was_solved = st.status == "solved"
     if body.status is not None:
         st.status = body.status
@@ -159,7 +164,7 @@ def set_status(pid: int, body: StatusIn, session: Session = Depends(get_session)
         st.revisit_date = date.today() + timedelta(days=_REVISIT.get(st.confidence, 7))
         if not was_solved:
             # First time solved today → count toward the daily ritual / streak.
-            service.record_coding_solve(session)
+            service.record_coding_solve(session, user.id)
     session.add(st)
     session.commit()
     return {"ok": True, "status": st.status, "confidence": st.confidence,
@@ -269,7 +274,8 @@ class RunIn(BaseModel):
 
 
 @router.post("/{pid}/run")
-async def run(pid: int, body: RunIn, session: Session = Depends(get_session)):
+async def run(pid: int, body: RunIn, user: User = RequireUser,
+              session: Session = Depends(get_session)):
     p = session.get(Problem, pid)
     if not p:
         raise HTTPException(404, "Problem not found")
@@ -301,7 +307,7 @@ async def run(pid: int, body: RunIn, session: Session = Depends(get_session)):
     else:
         result["tests"] = None  # couldn't grade (harness/exec issue) — stderr explains
     # Auto-advance status to 'attempted' on any run; caller marks solved explicitly.
-    st = _status_for(session, pid)
+    st = _status_for(session, user.id, pid)
     if st.status == "todo":
         st.status = "attempted"
         st.last_touched = datetime.utcnow()
@@ -332,10 +338,10 @@ async def mentor(pid: int, body: MentorIn, session: Session = Depends(get_sessio
     return {"answer": answer}
 
 
-def _get_settings(session: Session) -> Settings:
-    s = session.get(Settings, 1)
+def _get_settings(session: Session, user_id: int) -> Settings:
+    s = session.exec(select(Settings).where(Settings.user_id == user_id)).first()
     if not s:
-        s = Settings(id=1)
+        s = Settings(user_id=user_id)
         session.add(s)
         session.commit()
         session.refresh(s)
@@ -349,15 +355,17 @@ class TargetIn(BaseModel):
 
 
 @router.get("/target/status")
-def target_status(session: Session = Depends(get_session)):
-    s = _get_settings(session)
+def target_status(user: User = RequireUser, session: Session = Depends(get_session)):
+    s = _get_settings(session, user.id)
     today = date.today()
     solved_today = session.exec(
         select(func.count()).select_from(ProblemStatus)
-        .where(ProblemStatus.status == "solved", func.date(ProblemStatus.last_touched) == today.isoformat())
+        .where(ProblemStatus.user_id == user.id, ProblemStatus.status == "solved",
+               func.date(ProblemStatus.last_touched) == today.isoformat())
     ).one()
     total_solved = session.exec(
-        select(func.count()).select_from(ProblemStatus).where(ProblemStatus.status == "solved")).one()
+        select(func.count()).select_from(ProblemStatus)
+        .where(ProblemStatus.user_id == user.id, ProblemStatus.status == "solved")).one()
 
     pace = None
     if s.goal_date:
@@ -382,9 +390,9 @@ def target_status(session: Session = Depends(get_session)):
 
 
 @router.post("/target")
-def set_target(body: TargetIn, session: Session = Depends(get_session)):
+def set_target(body: TargetIn, user: User = RequireUser, session: Session = Depends(get_session)):
     from datetime import date as _date
-    s = _get_settings(session)
+    s = _get_settings(session, user.id)
     if body.daily_problem_target is not None:
         s.daily_problem_target = max(1, body.daily_problem_target)
     if body.goal_total is not None:
@@ -397,16 +405,18 @@ def set_target(body: TargetIn, session: Session = Depends(get_session)):
 
 
 @router.get("/stats/summary")
-def stats(session: Session = Depends(get_session)):
+def stats(user: User = RequireUser, session: Session = Depends(get_session)):
     total = session.exec(select(func.count()).select_from(Problem)).one()
     by_diff = {}
     for d in ("Easy", "Medium", "Hard"):
         tot = session.exec(select(func.count()).select_from(Problem).where(Problem.difficulty == d)).one()
         solved = session.exec(
             select(func.count()).select_from(ProblemStatus).join(Problem, Problem.id == ProblemStatus.problem_id)
-            .where(Problem.difficulty == d, ProblemStatus.status == "solved")
+            .where(Problem.difficulty == d, ProblemStatus.user_id == user.id,
+                   ProblemStatus.status == "solved")
         ).one()
         by_diff[d] = {"total": tot, "solved": solved}
     solved_total = session.exec(
-        select(func.count()).select_from(ProblemStatus).where(ProblemStatus.status == "solved")).one()
+        select(func.count()).select_from(ProblemStatus)
+        .where(ProblemStatus.user_id == user.id, ProblemStatus.status == "solved")).one()
     return {"total": total, "solved": solved_total, "by_difficulty": by_diff}

@@ -14,13 +14,15 @@ import FlightPlan from "./pages/FlightPlan";
 // Heavy (CodeMirror) — only loaded when opening a problem to solve.
 const Solve = lazy(() => import("./pages/Solve"));
 
-type Auth = { loading: boolean; authed: boolean; user: string };
+type Auth = { loading: boolean; authed: boolean; user: string; invite?: string };
 
 export default function App() {
   const [auth, setAuth] = useState<Auth>({ loading: true, authed: false, user: "" });
 
   useEffect(() => {
-    api.me().then((r) => setAuth({ loading: false, authed: r.authenticated, user: r.username || "" }));
+    api.me().then((r) => setAuth({
+      loading: false, authed: r.authenticated, user: r.username || "", invite: r.invite_code,
+    }));
   }, []);
 
   if (auth.loading) return <div className="auth-wrap"><span className="loading">initializing</span></div>;
@@ -30,7 +32,8 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Rail user={auth.user} onLogout={() => setAuth({ loading: false, authed: false, user: "" })} />
+      <Rail user={auth.user} invite={auth.invite}
+            onLogout={() => setAuth({ loading: false, authed: false, user: "" })} />
       <div className="main">
         <Routes>
           <Route path="/" element={<Today />} />
@@ -51,7 +54,7 @@ export default function App() {
   );
 }
 
-function Rail({ user, onLogout }: { user: string; onLogout: () => void }) {
+function Rail({ user, invite, onLogout }: { user: string; invite?: string; onLogout: () => void }) {
   const nav = useNavigate();
   const [brain, setBrain] = useState<{ online: boolean; model: string }>({ online: false, model: "" });
   const [streak, setStreak] = useState<number>(0);
@@ -101,6 +104,11 @@ function Rail({ user, onLogout }: { user: string; onLogout: () => void }) {
         </div>
         <div className="row"><span>model</span><span>{brain.model.split(":")[0] || "—"}</span></div>
         <div className="row"><span>pilot</span><span>{user}</span></div>
+        {invite && (
+          <div className="row" title="Share with a new pilot — they register with this code">
+            <span>invite</span><span className="mono">{invite}</span>
+          </div>
+        )}
         <button className="logout" onClick={logout}>↳ sign out</button>
       </div>
     </nav>

@@ -38,12 +38,35 @@ def _card_public(card: Card, concept: Concept, reveal: bool = False) -> dict:
     return d
 
 
-def build_daily_plan(session: Session) -> dict:
+def sync_user_cards(session: Session, user_id: int) -> int:
+    """Give the user their own copy (fresh SM-2 state) of any template card
+    (user_id NULL) whose concept they don't have yet. Returns # copied."""
+    have = set(session.exec(
+        select(Card.concept_id).where(Card.user_id == user_id).distinct()).all())
+    templates = session.exec(select(Card).where(Card.user_id == None)).all()  # noqa: E711
+    copied = 0
+    for t in templates:
+        if t.concept_id in have:
+            continue
+        session.add(Card(
+            user_id=user_id, concept_id=t.concept_id, kind=t.kind, prompt=t.prompt,
+            choices_json=t.choices_json, answer=t.answer, explanation=t.explanation,
+            source=t.source,
+        ))
+        copied += 1
+    if copied:
+        session.commit()
+    return copied
+
+
+def build_daily_plan(session: Session, user_id: int) -> dict:
     """Due reviews + a few brand-new cards, grouped for today."""
     today = date.today()
+    sync_user_cards(session, user_id)  # pick up any newly authored content
 
     due = session.exec(
-        select(Card).where(Card.introduced == True, Card.due_date <= today)  # noqa: E712
+        select(Card).where(Card.user_id == user_id,
+                           Card.introduced == True, Card.due_date <= today)  # noqa: E712
         .order_by(Card.due_date).limit(settings.max_reviews_per_day)
     ).all()
 
@@ -52,7 +75,7 @@ def build_daily_plan(session: Session) -> dict:
     order_key = case((Concept.sequence == 0, 1_000_000_000), else_=Concept.sequence)
     new = session.exec(
         select(Card).join(Concept, Concept.id == Card.concept_id)
-        .where(Card.introduced == False)  # noqa: E712
+        .where(Card.user_id == user_id, Card.introduced == False)  # noqa: E712
         .order_by(order_key, Card.id).limit(settings.new_topics_per_day)
     ).all()
 
@@ -68,13 +91,13 @@ def build_daily_plan(session: Session) -> dict:
         "date": today.isoformat(),
         "reviews": hydrate(due),
         "new": hydrate(new),
-        "streak": current_streak(session),
+        "streak": current_streak(session, user_id),
     }
 
 
-def get_card_detail(session: Session, card_id: int) -> dict | None:
+def get_card_detail(session: Session, card_id: int, user_id: int) -> dict | None:
     card = session.get(Card, card_id)
-    if not card:
+    if not card or card.user_id != user_id:
         return None
     concept = session.get(Concept, card.concept_id)
     d = _card_public(card, concept, reveal=True)
@@ -90,14 +113,11 @@ def record_attempt(
     apply_grade(card, grade)
     session.add(card)
     session.add(Attempt(
-        card_id=card.id, concept_id=concept.id, track=concept.track,
+        user_id=card.user_id, card_id=card.id, concept_id=concept.id, track=concept.track,
         grade=grade, correct=correct, user_answer=user_answer, ai_feedback=ai_feedback,
     ))
     # Update today's day-log.
-    today = date.today()
-    log = session.exec(select(DayLog).where(DayLog.day == today)).first()
-    if not log:
-        log = DayLog(day=today)
+    log = _day_log(session, card.user_id)
     log.reviews_done += 1
     if was_new:
         log.new_learned += 1
@@ -107,20 +127,25 @@ def record_attempt(
     session.commit()
 
 
-def record_coding_solve(session: Session) -> None:
-    """Count a coding solve toward today's ritual (feeds the streak + flight log)."""
+def _day_log(session: Session, user_id: int) -> DayLog:
     today = date.today()
-    log = session.exec(select(DayLog).where(DayLog.day == today)).first()
-    if not log:
-        log = DayLog(day=today)
+    log = session.exec(
+        select(DayLog).where(DayLog.user_id == user_id, DayLog.day == today)).first()
+    return log or DayLog(user_id=user_id, day=today)
+
+
+def record_coding_solve(session: Session, user_id: int) -> None:
+    """Count a coding solve toward today's ritual (feeds the streak + flight log)."""
+    log = _day_log(session, user_id)
     log.coding_solved += 1
     session.add(log)
     session.commit()
 
 
-def current_streak(session: Session) -> int:
+def current_streak(session: Session, user_id: int) -> int:
     """Consecutive days (ending today or yesterday) with any activity: a review OR a coding solve."""
-    logs = session.exec(select(DayLog).order_by(DayLog.day.desc())).all()
+    logs = session.exec(
+        select(DayLog).where(DayLog.user_id == user_id).order_by(DayLog.day.desc())).all()
     if not logs:
         return 0
     days = {log.day for log in logs if log.reviews_done > 0 or log.coding_solved > 0}
@@ -135,7 +160,7 @@ def current_streak(session: Session) -> int:
     return streak
 
 
-def book_progress(session: Session) -> list[dict]:
+def book_progress(session: Session, user_id: int) -> list[dict]:
     """Per-book study progress: sections seen vs total, and current chapter."""
     books = session.exec(
         select(Concept.book).where(Concept.book != "").distinct()
@@ -149,7 +174,8 @@ def book_progress(session: Session) -> list[dict]:
         seen = 0
         current_chapter = concepts[0].chapter if concepts else ""
         for c in concepts:
-            cards = session.exec(select(Card).where(Card.concept_id == c.id)).all()
+            cards = session.exec(select(Card).where(
+                Card.concept_id == c.id, Card.user_id == user_id)).all()
             if cards and all(cd.introduced for cd in cards):
                 seen += 1
             elif current_chapter == (concepts[0].chapter if concepts else ""):
@@ -168,21 +194,26 @@ def book_progress(session: Session) -> list[dict]:
     return out
 
 
-def progress_stats(session: Session) -> dict:
+def progress_stats(session: Session, user_id: int) -> dict:
     total_concepts = session.exec(select(func.count()).select_from(Concept)).one()
-    total_cards = session.exec(select(func.count()).select_from(Card)).one()
+    total_cards = session.exec(
+        select(func.count()).select_from(Card).where(Card.user_id == user_id)).one()
     introduced = session.exec(
-        select(func.count()).select_from(Card).where(Card.introduced == True)  # noqa: E712
+        select(func.count()).select_from(Card)
+        .where(Card.user_id == user_id, Card.introduced == True)  # noqa: E712
     ).one()
-    attempts = session.exec(select(func.count()).select_from(Attempt)).one()
+    attempts = session.exec(
+        select(func.count()).select_from(Attempt).where(Attempt.user_id == user_id)).one()
     correct = session.exec(
-        select(func.count()).select_from(Attempt).where(Attempt.correct == True)  # noqa: E712
+        select(func.count()).select_from(Attempt)
+        .where(Attempt.user_id == user_id, Attempt.correct == True)  # noqa: E712
     ).one()
 
     # Mastery per track (avg interval as a rough proxy for retention).
     per_track = {}
     for track in ["DSA", "System Design", "CS Fundamentals", "Behavioral"]:
-        cards = session.exec(select(Card).join(Concept).where(Concept.track == track)).all()
+        cards = session.exec(select(Card).join(Concept).where(
+            Concept.track == track, Card.user_id == user_id)).all()
         seen = [c for c in cards if c.introduced]
         mastered = [c for c in seen if c.interval_days >= 7]
         per_track[track] = {
@@ -195,7 +226,8 @@ def progress_stats(session: Session) -> dict:
     activity = []
     for i in range(13, -1, -1):
         d = date.today() - timedelta(days=i)
-        log = session.exec(select(DayLog).where(DayLog.day == d)).first()
+        log = session.exec(select(DayLog).where(
+            DayLog.user_id == user_id, DayLog.day == d)).first()
         reviews = log.reviews_done if log else 0
         coding = log.coding_solved if log else 0
         activity.append({
@@ -212,7 +244,7 @@ def progress_stats(session: Session) -> dict:
         "introduced": introduced,
         "attempts": attempts,
         "accuracy": round(correct / attempts, 3) if attempts else 0.0,
-        "streak": current_streak(session),
+        "streak": current_streak(session, user_id),
         "per_track": per_track,
         "activity": activity,
     }
