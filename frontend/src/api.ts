@@ -38,8 +38,8 @@ export const api = {
   me: () => req("/api/auth/me"),
   login: (username: string, password: string) =>
     fetch("/api/auth/login", { method: "POST", headers: json, body: JSON.stringify({ username, password }) }),
-  register: (username: string, password: string, invite_code: string) =>
-    fetch("/api/auth/register", { method: "POST", headers: json, body: JSON.stringify({ username, password, invite_code }) }),
+  register: (username: string, password: string, invite_code: string, level = "newgrad", lang = "python") =>
+    fetch("/api/auth/register", { method: "POST", headers: json, body: JSON.stringify({ username, password, invite_code, level, lang }) }),
   logout: () => req("/api/auth/logout", { method: "POST" }),
 
   today: (): Promise<Plan> => req("/api/today"),

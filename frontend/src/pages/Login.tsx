@@ -8,6 +8,8 @@ export default function Login({ onAuthed }: { onAuthed: (user: string) => void }
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [invite, setInvite] = useState("");
+  const [level, setLevel] = useState("newgrad");
+  const [lang, setLang] = useState("python");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -27,7 +29,7 @@ export default function Login({ onAuthed }: { onAuthed: (user: string) => void }
         const r = await api.setup(password, username);
         if (!r.ok) throw new Error(password.length < 6 ? "Choose at least 6 characters." : "Setup failed.");
       } else if (mode === "register") {
-        const r = await api.register(username, password, invite);
+        const r = await api.register(username, password, invite, level, lang);
         if (!r.ok) {
           const detail = (await r.json().catch(() => null))?.detail;
           throw new Error(detail || "Couldn't create the account.");
@@ -77,10 +79,27 @@ export default function Login({ onAuthed }: { onAuthed: (user: string) => void }
           />
         </div>
         {mode === "register" && (
-          <div className="field">
-            <label>Invite code</label>
-            <input value={invite} onChange={(e) => setInvite(e.target.value)} placeholder="ask the admin" />
-          </div>
+          <>
+            <div className="field">
+              <label>Invite code</label>
+              <input value={invite} onChange={(e) => setInvite(e.target.value)} placeholder="ask the admin" />
+            </div>
+            <div className="field">
+              <label>Experience</label>
+              <select value={level} onChange={(e) => setLevel(e.target.value)}>
+                <option value="newgrad">New grad / early career (SDE-1)</option>
+                <option value="senior">Experienced (senior+)</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>Preferred language</label>
+              <select value={lang} onChange={(e) => setLang(e.target.value)}>
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+                <option value="go">Go</option>
+              </select>
+            </div>
+          </>
         )}
         {err && <div className="err">{err}</div>}
         <button className="btn wide" disabled={busy}>

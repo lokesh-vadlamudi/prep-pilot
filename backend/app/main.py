@@ -83,7 +83,7 @@ def setup(body: SetupIn, response: Response):
         session.add(UserSettings(user_id=user.id))
         session.commit()
         from . import service
-        service.sync_user_cards(session, user.id)
+        service.sync_user_cards(session, user)
         auth.issue_session(response, user)
     return {"ok": True, "username": username}
 

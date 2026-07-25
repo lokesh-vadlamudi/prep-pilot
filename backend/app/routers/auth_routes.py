@@ -30,6 +30,8 @@ class RegisterIn(BaseModel):
     username: str
     password: str
     invite_code: str
+    level: str = "newgrad"       # newgrad | senior
+    lang: str = "python"         # preferred language for examples
 
 
 @router.post("/register")
@@ -43,13 +45,15 @@ def register(body: RegisterIn, response: Response, session: Session = Depends(ge
         raise HTTPException(400, "Passcode must be at least 6 characters")
     if session.exec(select(User).where(User.username == username)).first():
         raise HTTPException(409, "That username is taken")
-    user = User(username=username, password_hash=auth.hash_password(body.password))
+    level = body.level if body.level in ("newgrad", "senior") else "newgrad"
+    user = User(username=username, password_hash=auth.hash_password(body.password),
+                level=level, lang=body.lang.strip().lower()[:20])
     session.add(user)
     session.commit()
     session.refresh(user)
     session.add(Settings(user_id=user.id))
     session.commit()
-    service.sync_user_cards(session, user.id)
+    service.sync_user_cards(session, user)
     auth.issue_session(response, user)
     return {"ok": True, "username": user.username}
 

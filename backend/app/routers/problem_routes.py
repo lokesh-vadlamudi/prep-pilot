@@ -176,11 +176,13 @@ class CoachIn(BaseModel):
 
 
 @router.post("/{pid}/coach")
-async def coach(pid: int, body: CoachIn, session: Session = Depends(get_session)):
+async def coach(pid: int, body: CoachIn, user: User = RequireUser,
+                session: Session = Depends(get_session)):
     p = session.get(Problem, pid)
     if not p:
         raise HTTPException(404, "Problem not found")
-    return await tutor.coach_problem(p.title, p.pattern, body.plan)
+    return await tutor.coach_problem(p.title, p.pattern, body.plan,
+                                     learner=tutor.learner_context(user))
 
 
 @router.get("/{pid}/hints")
@@ -326,7 +328,8 @@ class MentorIn(BaseModel):
 
 
 @router.post("/{pid}/mentor")
-async def mentor(pid: int, body: MentorIn, session: Session = Depends(get_session)):
+async def mentor(pid: int, body: MentorIn, user: User = RequireUser,
+                 session: Session = Depends(get_session)):
     p = session.get(Problem, pid)
     if not p:
         raise HTTPException(404, "Problem not found")
@@ -334,7 +337,8 @@ async def mentor(pid: int, body: MentorIn, session: Session = Depends(get_sessio
     if body.message:
         history = history + [{"role": "user", "content": body.message}]
     answer = await tutor.review_code(
-        p.title, body.language, body.code, body.test_summary, body.mode, history)
+        p.title, body.language, body.code, body.test_summary, body.mode, history,
+        learner=tutor.learner_context(user))
     return {"answer": answer}
 
 

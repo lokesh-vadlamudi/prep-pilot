@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api", tags=["study"], dependencies=[RequireUser])
 
 @router.get("/today")
 def today(user: User = RequireUser, session: Session = Depends(get_session)):
-    return service.build_daily_plan(session, user.id)
+    return service.build_daily_plan(session, user)
 
 
 @router.get("/card/{card_id}")
@@ -51,7 +51,8 @@ async def submit(body: SubmitIn, user: User = RequireUser, session: Session = De
         correct = grade >= 3
     else:
         # Free-text / code: grade with the DGX tutor.
-        result = await tutor.grade_free_answer(card, concept, body.user_answer)
+        result = await tutor.grade_free_answer(
+            card, concept, body.user_answer, learner=tutor.learner_context(user))
         grade, correct, ai_feedback = result["grade"], result["correct"], result["feedback"]
 
     service.record_attempt(session, card, concept, grade, correct, body.user_answer, ai_feedback)

@@ -33,6 +33,11 @@ _ADD_COLUMNS = {
         ("chapter", "VARCHAR DEFAULT ''"),
         ("sequence", "INTEGER DEFAULT 0"),
         ("citation", "VARCHAR DEFAULT ''"),
+        ("audience", "VARCHAR DEFAULT 'all'"),
+    ],
+    "user": [
+        ("level", "VARCHAR DEFAULT 'senior'"),
+        ("lang", "VARCHAR DEFAULT ''"),
     ],
     "card": [("user_id", "INTEGER")],
     "attempt": [("user_id", "INTEGER")],
@@ -52,7 +57,25 @@ def _migrate() -> None:
                 if name not in existing:
                     conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
         _rebuild_unique_indexes(conn)
+        _backfill_audience(conn)
     _migrate_multiuser()
+
+
+def _backfill_audience(conn) -> None:
+    """One-time: pre-audience concepts that are clearly senior material (the
+    ingested books and their supplements) get audience='senior'."""
+    done = conn.exec_driver_sql(
+        "SELECT 1 FROM _meta WHERE key = 'audience_backfilled'").fetchone() if conn.exec_driver_sql(
+        "SELECT name FROM sqlite_master WHERE name='_meta'").fetchone() else None
+    if done:
+        return
+    conn.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT)")
+    conn.exec_driver_sql(
+        "UPDATE concept SET audience = 'senior' WHERE audience = 'all' AND "
+        "(book != '' OR track IN ('Foundations', 'Cross-links'))")
+    conn.exec_driver_sql(
+        "INSERT OR IGNORE INTO _meta (key, value) VALUES ('audience_backfilled', datetime('now'))")
 
 
 def _rebuild_unique_indexes(conn) -> None:

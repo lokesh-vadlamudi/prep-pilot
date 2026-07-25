@@ -29,23 +29,40 @@ THEMES = {
                    "ambiguity & scoping", "influencing without authority", "prioritization & trade-offs"],
 }
 
+# Entry-level themes for new-grad accounts ("Generate new topics" respects the
+# requesting user's level; the nightly job authors senior content).
+THEMES_NEWGRAD = {
+    "DSA": ["arrays & strings warm-ups", "hashmap frequency patterns", "two pointers basics",
+            "recursion fundamentals", "linked list operations", "binary trees intro",
+            "sorting algorithms compared", "stack & queue patterns"],
+    "System Design": ["how a URL becomes a webpage", "REST API design basics", "SQL vs NoSQL",
+                      "caching for beginners", "load balancers 101", "what a message queue is for"],
+    "CS Fundamentals": ["Big-O by example", "how hash tables work", "process vs thread",
+                        "HTTP status codes & verbs", "database transactions & ACID",
+                        "Python memory model basics", "how the internet routes a packet"],
+    "Behavioral": ["talking about class/personal projects", "teamwork on group assignments",
+                   "learning something quickly", "handling feedback", "why this company"],
+}
 
-async def generate_new_concepts(per_track: int = 1) -> int:
+
+async def generate_new_concepts(per_track: int = 1, audience: str = "senior") -> int:
     """Author `per_track` new concepts for each track. Returns count added."""
     added = 0
+    theme_bank = THEMES_NEWGRAD if audience == "newgrad" else THEMES
     with Session(engine) as session:
         existing = session.exec(select(Concept)).all()
         titles = [c.title for c in existing]
         counts = {}
         for c in existing:
-            counts[c.track] = counts.get(c.track, 0) + 1
+            if c.audience == audience or c.audience == "all":
+                counts[c.track] = counts.get(c.track, 0) + 1
 
-        for track, themes in THEMES.items():
+        for track, themes in theme_bank.items():
             for _ in range(per_track):
                 # Rotate theme by how many concepts already exist in the track.
                 theme = themes[counts.get(track, 0) % len(themes)]
                 try:
-                    data = await tutor.generate_concept(track, theme, titles)
+                    data = await tutor.generate_concept(track, theme, titles, audience)
                 except Exception as e:  # noqa: BLE001
                     log.warning("generation failed for %s/%s: %s", track, theme, e)
                     continue
@@ -60,7 +77,7 @@ async def generate_new_concepts(per_track: int = 1) -> int:
                     slug=slug, track=track, title=data.get("title", theme),
                     difficulty=data.get("difficulty", "core"), tags=data.get("tags", ""),
                     summary=data.get("summary", ""), lesson_md=data.get("lesson_md", ""),
-                    source="ai",
+                    source="ai", audience=audience,
                 )
                 session.add(concept)
                 session.commit()

@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from ..auth import RequireUser
+from ..models import User
 from .. import tutor, scheduler, llm
 
 router = APIRouter(prefix="/api", tags=["ask"], dependencies=[RequireUser])
@@ -17,15 +18,16 @@ class AskIn(BaseModel):
 
 
 @router.post("/ask")
-async def ask(body: AskIn):
-    answer = await tutor.answer_question(body.question, body.context, body.history)
+async def ask(body: AskIn, user: User = RequireUser):
+    answer = await tutor.answer_question(
+        body.question, body.context, body.history, learner=tutor.learner_context(user))
     return {"answer": answer}
 
 
 @router.post("/generate-now")
-async def generate_now(per_track: int = 1):
-    """Manually trigger the nightly generation (adds `per_track` concepts per track)."""
-    added = await scheduler.generate_new_concepts(per_track=per_track)
+async def generate_now(per_track: int = 1, user: User = RequireUser):
+    """Manually trigger content generation, authored for the requesting user's level."""
+    added = await scheduler.generate_new_concepts(per_track=per_track, audience=user.level)
     return {"added": added}
 
 

@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 from ..auth import RequireUser
 from ..db import get_session
 from ..models import MockSession, User
-from .. import mock
+from .. import mock, tutor
 
 router = APIRouter(prefix="/api/mock", tags=["mock"], dependencies=[RequireUser])
 
@@ -40,7 +40,8 @@ class StartIn(BaseModel):
 async def start(body: StartIn, user: User = RequireUser, session: Session = Depends(get_session)):
     if body.kind not in VALID_KINDS:
         raise HTTPException(400, "Invalid interview kind")
-    opening = await mock.open_interview(body.kind, body.topic, body.difficulty)
+    opening = await mock.open_interview(body.kind, body.topic, body.difficulty,
+                                        learner=tutor.learner_context(user))
     transcript = [{"role": "interviewer", "content": opening}]
     m = MockSession(
         user_id=user.id, kind=body.kind, topic=body.topic, difficulty=body.difficulty,
@@ -65,7 +66,8 @@ async def reply(sid: int, body: ReplyIn, user: User = RequireUser,
         raise HTTPException(400, "This interview has ended")
     transcript = _load(m)
     transcript.append({"role": "candidate", "content": body.message})
-    interviewer = await mock.next_turn(m.kind, m.topic, m.difficulty, transcript)
+    interviewer = await mock.next_turn(m.kind, m.topic, m.difficulty, transcript,
+                                       learner=tutor.learner_context(user))
     transcript.append({"role": "interviewer", "content": interviewer})
     m.transcript_json = json.dumps(transcript)
     session.add(m)
@@ -78,7 +80,8 @@ async def finish(sid: int, user: User = RequireUser, session: Session = Depends(
     m = _owned(session, sid, user)
     transcript = _load(m)
     if m.status != "done":
-        rubric = await mock.score(m.kind, m.topic, transcript)
+        rubric = await mock.score(m.kind, m.topic, transcript,
+                                  learner=tutor.learner_context(user))
         m.rubric_json = json.dumps(rubric)
         m.status = "done"
         m.ended_at = datetime.utcnow()

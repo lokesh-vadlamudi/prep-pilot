@@ -9,7 +9,7 @@ from sqlmodel import Session, select, func
 from sqlalchemy import case
 
 from .config import settings
-from .models import Concept, Card, Attempt, DayLog
+from .models import Concept, Card, Attempt, DayLog, User
 from .srs import apply_grade
 
 
@@ -38,18 +38,28 @@ def _card_public(card: Card, concept: Concept, reveal: bool = False) -> dict:
     return d
 
 
-def sync_user_cards(session: Session, user_id: int) -> int:
+def audiences_for(user: User) -> tuple[str, str]:
+    """Which concept audiences this user studies."""
+    return ("all", "newgrad") if user.level == "newgrad" else ("all", "senior")
+
+
+def sync_user_cards(session: Session, user: User) -> int:
     """Give the user their own copy (fresh SM-2 state) of any template card
-    (user_id NULL) whose concept they don't have yet. Returns # copied."""
+    (user_id NULL) whose concept they don't have yet, respecting the concept's
+    audience (new grads skip the senior book tracks and vice versa)."""
     have = set(session.exec(
-        select(Card.concept_id).where(Card.user_id == user_id).distinct()).all())
-    templates = session.exec(select(Card).where(Card.user_id == None)).all()  # noqa: E711
+        select(Card.concept_id).where(Card.user_id == user.id).distinct()).all())
+    templates = session.exec(
+        select(Card).join(Concept, Concept.id == Card.concept_id)
+        .where(Card.user_id == None,  # noqa: E711
+               Concept.audience.in_(audiences_for(user)))  # type: ignore[attr-defined]
+    ).all()
     copied = 0
     for t in templates:
         if t.concept_id in have:
             continue
         session.add(Card(
-            user_id=user_id, concept_id=t.concept_id, kind=t.kind, prompt=t.prompt,
+            user_id=user.id, concept_id=t.concept_id, kind=t.kind, prompt=t.prompt,
             choices_json=t.choices_json, answer=t.answer, explanation=t.explanation,
             source=t.source,
         ))
@@ -59,10 +69,11 @@ def sync_user_cards(session: Session, user_id: int) -> int:
     return copied
 
 
-def build_daily_plan(session: Session, user_id: int) -> dict:
+def build_daily_plan(session: Session, user: User) -> dict:
     """Due reviews + a few brand-new cards, grouped for today."""
     today = date.today()
-    sync_user_cards(session, user_id)  # pick up any newly authored content
+    user_id = user.id
+    sync_user_cards(session, user)  # pick up any newly authored content
 
     due = session.exec(
         select(Card).where(Card.user_id == user_id,

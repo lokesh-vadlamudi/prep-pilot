@@ -17,6 +17,9 @@ class User(SQLModel, table=True):
     username: str = Field(index=True, unique=True)
     password_hash: str = ""
     is_admin: bool = False
+    # Learner profile: tunes curriculum selection and every AI interaction.
+    level: str = "senior"                   # senior | newgrad
+    lang: str = ""                          # preferred language for examples ("python", ...)
     created_at: datetime = Field(default_factory=utcnow)
 
 
@@ -31,6 +34,7 @@ class Concept(SQLModel, table=True):
     summary: str = ""                       # short one-liner
     lesson_md: str = ""                     # full markdown lesson (curated or AI-authored)
     source: str = "seed"                    # seed | ai | book
+    audience: str = Field(default="all", index=True)  # all | senior | newgrad
     created_at: datetime = Field(default_factory=utcnow)
     # --- book-ingestion fields (source == "book") ---
     book: str = Field(default="", index=True)   # book title ("" for non-book concepts)

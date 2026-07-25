@@ -7,6 +7,7 @@ from sqlmodel import Session, select
 
 from ..models import Concept, Card, Problem
 from .curriculum import SEED
+from .foundations import FOUNDATIONS
 from .neetcode150 import problems as neetcode_problems
 
 
@@ -45,7 +46,7 @@ def seed_problems(session: Session) -> tuple[int, int]:
 def seed_database(session: Session) -> int:
     """Insert any seed concepts/cards not already present. Returns # concepts added."""
     added = 0
-    for item in SEED:
+    for item in list(SEED) + list(FOUNDATIONS):
         existing = session.exec(
             select(Concept).where(Concept.slug == item["slug"])
         ).first()
@@ -60,6 +61,8 @@ def seed_database(session: Session) -> int:
             summary=item.get("summary", ""),
             lesson_md=item.get("lesson_md", ""),
             source="seed",
+            audience=item.get("audience", "all"),
+            sequence=item.get("sequence", 0),
         )
         session.add(concept)
         session.commit()

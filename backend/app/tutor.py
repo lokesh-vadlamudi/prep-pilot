@@ -5,14 +5,35 @@ import json
 
 from .llm import chat, chat_json
 from .executor import USER_CODE_MARKER
-from .models import Card, Concept
+from .models import Card, Concept, User
+
+_PLAIN_MATH = (
+    "Write complexities and math in plain text (e.g. O(n log n), 2^n), "
+    "never LaTeX or $...$ delimiters."
+)
 
 USER_CONTEXT = (
     "The learner is a senior software engineer targeting senior/staff roles. "
     "Their stack: Go, Python, TypeScript/React, and cloud (AWS, GCP, Azure, Terraform). "
-    "Prefer examples and trade-offs relevant to that background. "
-    "Write complexities and math in plain text (e.g. O(n log n), 2^n), never LaTeX or $...$ delimiters."
+    "Prefer examples and trade-offs relevant to that background. " + _PLAIN_MATH
 )
+
+NEWGRAD_CONTEXT = (
+    "The learner is a recent CS graduate preparing for entry-level SDE-1 interviews. "
+    "They are still building fundamentals: explain from first principles, define jargon "
+    "the first time you use it, prefer simple concrete examples over architecture "
+    "war stories, and calibrate the bar to a strong junior candidate — do not expect "
+    "senior-level depth, but do teach the right habits. {lang}" + _PLAIN_MATH
+)
+
+
+def learner_context(user: User | None) -> str:
+    """Per-user context injected into every non-cached AI interaction."""
+    if user is not None and user.level == "newgrad":
+        lang = (user.lang or "python").strip()
+        return NEWGRAD_CONTEXT.format(
+            lang=f"Their preferred language is {lang.title()} — use it for all code examples. ")
+    return USER_CONTEXT
 
 # The app renders Mermaid; tell the model to draw when a picture helps.
 DIAGRAM_HINT = (
@@ -27,11 +48,12 @@ DIAGRAM_HINT = (
 )
 
 
-async def grade_free_answer(card: Card, concept: Concept, user_answer: str) -> dict:
+async def grade_free_answer(card: Card, concept: Concept, user_answer: str,
+                            learner: str = "") -> dict:
     """Grade a free-text / coding answer. Returns {grade, correct, feedback}."""
     sys = (
-        "You are a rigorous but encouraging senior engineering interviewer. "
-        + USER_CONTEXT
+        "You are a rigorous but encouraging engineering interviewer. "
+        + (learner or USER_CONTEXT)
         + " Grade the candidate's answer against the reference. Be specific about "
         "what was missing or wrong, and name the strongest follow-up you'd ask next. "
         "Respond ONLY with JSON: "
@@ -57,10 +79,11 @@ async def grade_free_answer(card: Card, concept: Concept, user_answer: str) -> d
         return {"grade": 0, "correct": False, "feedback": f"(Auto-grade unavailable: {e})"}
 
 
-async def answer_question(question: str, context: str = "", history: list[dict] | None = None) -> str:
+async def answer_question(question: str, context: str = "", history: list[dict] | None = None,
+                          learner: str = "") -> str:
     sys = (
-        "You are a senior-staff engineer mentoring a peer for interviews. "
-        + USER_CONTEXT
+        "You are an experienced engineer mentoring someone for interviews. "
+        + (learner or USER_CONTEXT)
         + " Answer precisely and concisely with concrete examples and trade-offs. "
         "Use markdown. If the question is a system-design prompt, structure the answer "
         "(requirements, high-level design, data model, scaling, trade-offs). "
@@ -144,11 +167,12 @@ async def generate_harness(title: str, category: str, difficulty: str, pattern: 
 
 
 async def review_code(title: str, language: str, code: str, test_summary: str, mode: str,
-                      history: list[dict]) -> str:
+                      history: list[dict], learner: str = "") -> str:
     """Mentor chat: review / explain-line-by-line / free chat, with code in context."""
     base = (
         "You are a patient senior engineer pair-programming with the candidate on a coding "
-        "problem. " + USER_CONTEXT + " Be concrete and encouraging; use markdown and short code snippets."
+        "problem. " + (learner or USER_CONTEXT)
+        + " Be concrete and encouraging; use markdown and short code snippets."
         + DIAGRAM_HINT
     )
     mode_instr = {
@@ -214,11 +238,11 @@ async def author_approach(title: str, category: str, difficulty: str, pattern: s
     )
 
 
-async def coach_problem(title: str, pattern: str, user_plan: str) -> dict:
+async def coach_problem(title: str, pattern: str, user_plan: str, learner: str = "") -> dict:
     """Grade a candidate's proposed approach to a coding problem."""
     sys = (
         "You are a senior interviewer running a coding round. "
-        + USER_CONTEXT
+        + (learner or USER_CONTEXT)
         + " The candidate describes how they'd solve the problem (approach, not full code). "
         "Judge whether their plan is correct and optimal, name the single most important gap or "
         "the follow-up you'd ask, and rate recall for spaced repetition. "
@@ -307,11 +331,14 @@ async def cross_link(book_a: str, topic_a: str, book_b: str, topic_b: str) -> di
     )
 
 
-async def generate_concept(track: str, topic_hint: str, existing_titles: list[str]) -> dict:
+async def generate_concept(track: str, topic_hint: str, existing_titles: list[str],
+                           audience: str = "senior") -> dict:
     """Generate a fresh concept + 2 cards as JSON. Used by the nightly job."""
+    ctx = (NEWGRAD_CONTEXT.format(lang="Use Python for all code examples. ")
+           if audience == "newgrad" else USER_CONTEXT)
     sys = (
-        "You are a senior-SWE interview curriculum author. "
-        + USER_CONTEXT
+        "You are a SWE interview curriculum author. "
+        + ctx
         + " Create ONE new interview-worthy concept for the given track that is NOT "
         "already covered. Respond ONLY with JSON of the form:\n"
         "{\n"
