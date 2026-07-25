@@ -1,0 +1,81 @@
+{
+  "_comment": "Example flight plan. Copy to backend/data/roadmap.json and edit — dates, legs, and weekly rhythm are yours to shape. The app falls back to this file when no personal plan exists.",
+  "start": "2030-01-07",
+  "end": "2030-06-30",
+  "phase_days": 28,
+  "weekday_track": ["code", "design", "code", "design", "dgx", "deepwork", "mock"],
+  "phases": [
+    {
+      "key": "takeoff",
+      "callsign": "TAKEOFF",
+      "name": "Foundations",
+      "motto": "Wheels up. Build the habit before the ambition.",
+      "code": "Arrays & hashing, two pointers, sliding window, stack, binary search",
+      "design": "Interview meta-skills: how interviews are graded, clarify → approach → code → test",
+      "dgx": "Inference lab: serve a small model locally, baseline benchmark (tok/s, TTFT)",
+      "read": "A deep-dive article on how an inference request flows through a serving stack",
+      "story": "Draft behavioral (STAR) stories until you have a bank of 10",
+      "categories": ["Arrays & Hashing", "Two Pointers", "Sliding Window", "Stack", "Binary Search", "Linked List"]
+    },
+    {
+      "key": "climb",
+      "callsign": "CLIMB",
+      "name": "Core I",
+      "motto": "Gaining altitude — trees, heaps, and your first real designs.",
+      "code": "Trees, tries, heaps / priority queues",
+      "design": "Classic system designs: rate limiter, URL shortener, news feed — one per week on paper",
+      "dgx": "KV-cache deep-dive: read the PagedAttention paper, measure cache growth vs context length",
+      "read": "The PagedAttention paper (vLLM)",
+      "story": "Rehearse one STAR story out loud weekly",
+      "categories": ["Trees", "Tries", "Heap / Priority Queue"]
+    },
+    {
+      "key": "cruise",
+      "callsign": "CRUISE",
+      "name": "Core II",
+      "motto": "Steady state. Graphs below, quantization ahead.",
+      "code": "Graphs, advanced graphs, backtracking",
+      "design": "More designs + an intro to ML system design",
+      "dgx": "Quantization experiments: FP8 / INT8 / AWQ — quality vs throughput curves",
+      "read": "An ML-system-design primer",
+      "story": "Rehearse one STAR story out loud weekly",
+      "categories": ["Backtracking", "Graphs", "Advanced Graphs"]
+    },
+    {
+      "key": "longhaul",
+      "callsign": "LONG HAUL",
+      "name": "Flagship build",
+      "motto": "The leg that shows up on your resume.",
+      "code": "1-D/2-D dynamic programming, greedy, intervals",
+      "design": "GenAI designs: RAG pipeline, LLM API with rate limiting, evals + guardrails",
+      "dgx": "FLAGSHIP: build a serving stack — router, continuous batching, metrics — and write it up",
+      "read": "Your own benchmark notes — turn them into writeup sections",
+      "story": "Rehearse one STAR story out loud weekly",
+      "categories": ["1-D DP", "2-D DP", "Greedy", "Intervals"]
+    },
+    {
+      "key": "turbulence",
+      "callsign": "TURBULENCE",
+      "name": "Mocks & depth",
+      "motto": "Shake the airframe on purpose. Better here than in the loop.",
+      "code": "Timed mediums (35-min cap) + redo weak topics; math & bit manipulation",
+      "design": "Weekly mock out loud — alternate classic and ML system design",
+      "dgx": "A stretch experiment: speculative decoding, or a first custom GPU kernel",
+      "read": "GPU performance engineering resources",
+      "story": "Mock behavioral answers — record yourself",
+      "categories": ["Math & Geometry", "Bit Manipulation"]
+    },
+    {
+      "key": "final",
+      "callsign": "FINAL APPROACH",
+      "name": "Loop-ready",
+      "motto": "Gear down. Cleared to land.",
+      "code": "Company-tagged problems for your target list",
+      "design": "Full mock loops: system design + ML system design back-to-back",
+      "dgx": "Polish the flagship writeup into interview talking points",
+      "read": "Target companies' engineering blogs",
+      "story": "Final behavioral polish and follow-ups",
+      "categories": []
+    }
+  ]
+}

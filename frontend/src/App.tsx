@@ -63,7 +63,7 @@ function Rail({ user, onLogout }: { user: string; onLogout: () => void }) {
 
   const links = [
     { to: "/", label: "Pre-flight", hint: "today" },
-    { to: "/plan", label: "Flight plan", hint: "6-month" },
+    { to: "/plan", label: "Flight plan", hint: "roadmap" },
     { to: "/mock", label: "Mock interview", hint: "simulate" },
     { to: "/problems", label: "NeetCode 150", hint: "coding" },
     { to: "/topics", label: "Syllabus", hint: "topics" },

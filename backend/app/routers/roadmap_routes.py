@@ -1,4 +1,4 @@
-"""The 6-month flight plan: roadmap for the UI + a key-guarded brief for Alfred.
+"""The flight plan: roadmap for the UI + a key-guarded brief for reminder crons.
 
 /api/roadmap        — full plan (cookie auth, drives the Flight Plan page)
 /api/roadmap/brief  — compact live snapshot for the Telegram reminder script;
