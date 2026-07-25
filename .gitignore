@@ -1,0 +1,20 @@
+# secrets & runtime data — never commit
+backend/.env
+backend/data/
+books/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+
+# node / build output
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+
+# misc
+*.log
+.DS_Store
+
+deploy/deploy.env
