@@ -52,48 +52,49 @@ export default function FlightPlan() {
 
       {/* Flight path: six legs, plane at today's position */}
       <div className="panel">
-        <div className="flightpath">
+        <div className="flightpath" style={{ ["--pct" as any]: `${rm.pct}%` }}>
           {rm.phases.map((p) => (
             <div key={p.key} className={"leg-seg " + p.status} title={`${p.callsign} · ${fmt(p.start)}–${fmt(p.end)}`}>
               <span className="leg-tick">{p.callsign}</span>
             </div>
           ))}
-          <span className="plane" style={{ left: `${rm.pct}%` }}>✈</span>
+          <span className="plane" style={{ left: `clamp(10px, ${rm.pct}%, calc(100% - 10px))` }}>✈&#xFE0E;</span>
         </div>
         <div className="flightpath-meta">
           <span>{fmt(rm.start)} · wheels up</span>
-          <span className="mono" style={{ color: "var(--amber)" }}>{rm.pct}% of the route flown</span>
+          <span className="mono" style={{ color: "var(--course)" }}>{rm.pct}% of the route flown</span>
           <span>{fmt(rm.end)} · interviews</span>
         </div>
       </div>
 
-      {/* Today's mission */}
-      <div className="panel">
-        <div className="kicker">
-          <span className="eyebrow">Today's mission</span>
-          <span className="chip ai">{rm.mission.track_label}</span>
+      {/* Today's mission + weekly rhythm, side by side */}
+      <div className="deck">
+        <div className="panel s7">
+          <div className="kicker">
+            <span className="eyebrow">Today's mission</span>
+            <span className="chip ai">{rm.mission.track_label}</span>
+          </div>
+          <ul className="mission-list">
+            {rm.mission.slots.map((s, i) => (
+              <li key={s.time} className={i === liveIdx ? "live" : i < liveIdx ? "past" : ""}>
+                <span className="mono time">{s.time}</span>
+                <span>{s.title}</span>
+                {i === liveIdx && <span className="chip ai now-chip">now</span>}
+              </li>
+            ))}
+          </ul>
         </div>
-        <ul className="mission-list">
-          {rm.mission.slots.map((s, i) => (
-            <li key={s.time} className={i === liveIdx ? "live" : i < liveIdx ? "past" : ""}>
-              <span className="mono time">{s.time}</span>
-              <span>{s.title}</span>
-              {i === liveIdx && <span className="chip ai now-chip">now</span>}
-            </li>
-          ))}
-        </ul>
-      </div>
 
-      {/* Weekly rhythm */}
-      <div className="panel">
-        <div className="eyebrow" style={{ marginBottom: 12 }}>Weekly rhythm</div>
-        <div className="rhythm">
-          {rm.rhythm.map((r, i) => (
-            <div key={r.day} className={"rhythm-day" + (i === (new Date().getDay() + 6) % 7 ? " today" : "")}>
-              <span className="mono d">{r.day}</span>
-              <span className="t">{r.track}</span>
-            </div>
-          ))}
+        <div className="panel s5">
+          <div className="eyebrow" style={{ marginBottom: 12 }}>Weekly rhythm</div>
+          <div className="rhythm">
+            {rm.rhythm.map((r, i) => (
+              <div key={r.day} className={"rhythm-day" + (i === (new Date().getDay() + 6) % 7 ? " today" : "")}>
+                <span className="mono d">{r.day}</span>
+                <span className="t">{r.track}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

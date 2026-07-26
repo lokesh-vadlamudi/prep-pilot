@@ -147,8 +147,8 @@ def _migrate_multiuser() -> None:
 
         if users == 0 and settings.password_hash:
             conn.exec_driver_sql(
-                "INSERT INTO user (username, password_hash, is_admin, created_at) "
-                "VALUES (?, ?, 1, datetime('now'))",
+                "INSERT INTO user (username, password_hash, is_admin, level, lang, created_at) "
+                "VALUES (?, ?, 1, 'senior', '', datetime('now'))",
                 (settings.username, settings.password_hash),
             )
 

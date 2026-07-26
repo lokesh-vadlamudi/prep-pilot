@@ -15,7 +15,7 @@ function Mission() {
   return (
     <div className="panel">
       <div className="kicker">
-        <span className="eyebrow">Today's mission · week {rm.week}/{rm.total_weeks} · leg {cur.callsign}</span>
+        <span className="eyebrow" title={`Week ${rm.week}/${rm.total_weeks} · leg ${cur.callsign}`}>Today's mission · wk {rm.week}</span>
         <span className="chip ai">{rm.mission.track_label}</span>
       </div>
       <ul className="mission-list compact">
@@ -39,7 +39,7 @@ function Books() {
   useEffect(() => { api.books().then(setBooks).catch(() => {}); }, []);
   if (!books.length) return null;
   return (
-    <div className="panel">
+    <div className="panel s12">
       <div className="eyebrow" style={{ marginBottom: 14 }}>Your books · studied in reading order</div>
       {books.map((b) => {
         const pct = b.total ? Math.round((b.seen / b.total) * 100) : 0;
@@ -185,39 +185,46 @@ export default function Today() {
           <p>Clear your review checks, then take on new territory. Consistency compounds.</p>
         </div>
 
-        <div className="panel">
-          <div className="readout">
-            <div className="metric">
-              <div className="num">{plan.reviews.length}</div>
-              <div className="lbl">Due reviews</div>
-            </div>
-            <div className="metric">
-              <div className="num teal">{plan.new.length}</div>
-              <div className="lbl">New topics</div>
-            </div>
-            <div className="metric">
-              <div className="num plain">{plan.streak}</div>
-              <div className="lbl">Day streak</div>
-            </div>
-          </div>
-          <div style={{ marginTop: 26 }}>
-            {total > 0 ? (
-              <button className="btn" onClick={() => setStarted(true)}>
-                Begin session · {total} card{total === 1 ? "" : "s"}
-              </button>
-            ) : (
-              <div className="empty">
-                <div className="big">✓</div>
-                <p>All checks cleared for today. New material unlocks tomorrow — or generate more from the syllabus.</p>
+        <div className="deck">
+          <div className="s7 stack">
+          <div className="panel">
+            <div className="readout">
+              <div className="metric">
+                <div className="num">{plan.reviews.length}</div>
+                <div className="lbl">Due reviews</div>
               </div>
-            )}
+              <div className="metric">
+                <div className="num teal">{plan.new.length}</div>
+                <div className="lbl">New topics</div>
+              </div>
+              <div className="metric">
+                <div className="num plain">{plan.streak}</div>
+                <div className="lbl">Day streak</div>
+              </div>
+            </div>
+            <div style={{ marginTop: 26 }}>
+              {total > 0 ? (
+                <button className="btn" onClick={() => setStarted(true)}>
+                  Begin session · {total} card{total === 1 ? "" : "s"}
+                </button>
+              ) : (
+                <div className="empty">
+                  <div className="big">✓</div>
+                  <p>All checks cleared for today. New material unlocks tomorrow — or generate more from the syllabus.</p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+          <ProblemOfDay />
+          </div>
 
-        <Mission />
-        <Books />
-        <CodingTarget />
-        <ProblemOfDay />
+          <div className="s5 stack">
+            <Mission />
+            <CodingTarget />
+          </div>
+
+          <Books />
+        </div>
       </>
     );
   }

@@ -5,7 +5,6 @@ import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
 import { StreamLanguage } from "@codemirror/language";
 import { go } from "@codemirror/legacy-modes/mode/go";
-import { oneDark } from "@codemirror/theme-one-dark";
 import Markdown from "../components/Markdown";
 import { api, RunResult, diffClass } from "../api";
 
@@ -166,7 +165,6 @@ export default function Solve() {
               <CodeMirror
                 value={code}
                 height="380px"
-                theme={oneDark}
                 extensions={[langExt(lang)]}
                 onChange={setCode}
               />

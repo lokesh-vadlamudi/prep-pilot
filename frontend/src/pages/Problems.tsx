@@ -71,28 +71,27 @@ export default function Problems() {
       </div>
 
       <div className="panel">
-        <div className="filters" style={{ marginBottom: 16 }}>
-          {(["NeetCode 150", "Blind 75"] as const).map((c) => (
-            <button key={c} className={"filter-btn" + (coll === c ? " on" : "")}
-              onClick={() => { setColl(c); setCat("All"); }}>{c}</button>
-          ))}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16 }}>
+          <div className="progress-ring">
+            <span className="big">{solved}</span>
+            <span className="of">/ {total} solved · {pct}% · {coll}</span>
+          </div>
+          <div className="filters" style={{ marginBottom: 4 }}>
+            {(["NeetCode 150", "Blind 75"] as const).map((c) => (
+              <button key={c} className={"filter-btn" + (coll === c ? " on" : "")}
+                onClick={() => { setColl(c); setCat("All"); }}>{c}</button>
+            ))}
+          </div>
         </div>
-        <div className="progress-ring">
-          <span className="big">{solved}</span>
-          <span className="of">/ {total} solved · {pct}% · {coll}</span>
-        </div>
-        <div className="progress-track" style={{ marginTop: 14, marginBottom: 0 }}>
+        <div className="progress-track" style={{ marginTop: 14, marginBottom: 18 }}>
           <div className="progress-fill" style={{ width: `${pct}%` }} />
         </div>
-      </div>
-
-      <div className="panel">
-        <div className="filters" style={{ marginBottom: 12 }}>
+        <div className="filters" style={{ marginBottom: 12, paddingTop: 16, borderTop: "1px solid var(--hairline-soft)" }}>
           {cats.map((c) => (
             <button key={c} className={"filter-btn" + (cat === c ? " on" : "")} onClick={() => setCat(c)}>{c}</button>
           ))}
         </div>
-        <div className="filters">
+        <div className="filters" style={{ marginBottom: 0 }}>
           {["All", "Easy", "Medium", "Hard"].map((d) => (
             <button key={d} className={"filter-btn" + (diff === d ? " on" : "")} onClick={() => setDiff(d)}>{d}</button>
           ))}

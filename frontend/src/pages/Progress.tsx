@@ -22,35 +22,35 @@ export default function Progress() {
         <p>Retention, mastery altitude per track, and your recent activity.</p>
       </div>
 
-      <div className="panel">
-        <div className="readout">
-          <div className="metric"><div className="num">{s.streak}</div><div className="lbl">Day streak</div></div>
-          <div className="metric"><div className="num plain">{s.introduced}</div><div className="lbl">Cards in rotation</div></div>
-          <div className="metric"><div className="num plain">{s.attempts}</div><div className="lbl">Total reviews</div></div>
-          <div className="metric"><div className="num teal">{Math.round(s.accuracy * 100)}%</div><div className="lbl">Accuracy</div></div>
-        </div>
-      </div>
-
-      {ps && (
-        <div className="panel">
-          <div className="eyebrow" style={{ marginBottom: 12 }}>NeetCode 150 · coding</div>
-          <div className="progress-ring">
-            <span className="big">{ps.solved}</span>
-            <span className="of">/ {ps.total} solved</span>
-          </div>
-          <div className="progress-track" style={{ marginTop: 12, marginBottom: 14 }}>
-            <div className="progress-fill" style={{ width: `${Math.round((ps.solved / ps.total) * 100)}%` }} />
-          </div>
-          <div className="pill-row">
-            {(["Easy", "Medium", "Hard"] as const).map((d) => (
-              <span className="pill" key={d}>{d}: <b>{ps.by_difficulty[d].solved}</b>/{ps.by_difficulty[d].total}</span>
-            ))}
+      <div className="deck">
+        <div className="panel s12">
+          <div className="readout">
+            <div className="metric"><div className="num">{s.streak}</div><div className="lbl">Day streak</div></div>
+            <div className="metric"><div className="num plain">{s.introduced}</div><div className="lbl">Cards in rotation</div></div>
+            <div className="metric"><div className="num plain">{s.attempts}</div><div className="lbl">Total reviews</div></div>
+            <div className="metric"><div className="num teal">{Math.round(s.accuracy * 100)}%</div><div className="lbl">Accuracy</div></div>
           </div>
         </div>
-      )}
 
-      <div className="grid two">
-        <div className="panel">
+        {ps && (
+          <div className="panel s5">
+            <div className="eyebrow" style={{ marginBottom: 12 }}>NeetCode 150 · coding</div>
+            <div className="progress-ring">
+              <span className="big">{ps.solved}</span>
+              <span className="of">/ {ps.total} solved</span>
+            </div>
+            <div className="progress-track" style={{ marginTop: 12, marginBottom: 14 }}>
+              <div className="progress-fill" style={{ width: `${Math.round((ps.solved / ps.total) * 100)}%` }} />
+            </div>
+            <div className="pill-row">
+              {(["Easy", "Medium", "Hard"] as const).map((d) => (
+                <span className="pill" key={d}>{d}: <b>{ps.by_difficulty[d].solved}</b>/{ps.by_difficulty[d].total}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="panel s7">
           <div className="eyebrow" style={{ marginBottom: 16 }}>Mastery altitude by track</div>
           {tracks.map(([name, v]) => {
             const pct = v.total ? Math.round((v.mastered / v.total) * 100) : 0;
@@ -66,7 +66,7 @@ export default function Progress() {
           })}
         </div>
 
-        <div className="panel">
+        <div className="panel s12">
           <div className="eyebrow" style={{ marginBottom: 16 }}>Last 14 days</div>
           <div className="spark">
             {s.activity.map((a: any) => {
