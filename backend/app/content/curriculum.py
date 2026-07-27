@@ -392,4 +392,231 @@ SEED: list[dict] = [
              "explanation": "They're testing ownership and systems thinking. Owning your mistake honestly + preventing the whole class of failure is the senior signal."},
         ],
     },
+    # ============ Saved-reels batch (2026-07-26): senior-track topics ============
+    {
+        "slug": "replication-and-sharding",
+        "track": "System Design",
+        "title": "Database Replication & Sharding",
+        "difficulty": "core",
+        "tags": "databases,scaling,replication,sharding",
+        "summary": "Scale reads with replicas, scale writes with shards; know the failure modes of each.",
+        "audience": "senior",
+        "lesson_md": (
+            "Two orthogonal scaling moves, usually applied in this order:\n\n"
+            "**Replication** (copies of the same data) scales *reads* and buys availability.\n"
+            "- **Leader-follower**: writes hit the leader, reads fan out to followers. *Async* replication is fast but "
+            "can lose acked writes on failover and serves stale reads; *sync* is durable but adds write latency.\n"
+            "- Watch for: replication lag (read-your-own-writes violations — pin a user to the leader briefly after a write), "
+            "and failover split-brain (two leaders) — needs fencing/consensus.\n\n"
+            "**Sharding** (partitioning data across nodes) scales *writes* and total storage.\n"
+            "- **Hash sharding** spreads load evenly but kills range queries; **range sharding** keeps ranges cheap but risks hot shards.\n"
+            "- **Consistent hashing** limits data movement when nodes join/leave.\n"
+            "- Costs: cross-shard joins/transactions get hard, rebalancing is operationally risky, and a bad shard key is nearly "
+            "irreversible — pick the key that matches your dominant access pattern (e.g. user_id for a user-centric app).\n\n"
+            "Interview shape: state read:write ratio first — it decides whether you reach for replicas, shards, or just a cache."
+        ),
+        "cards": [
+            {"kind": "mcq",
+             "prompt": "Your service is write-heavy and a single primary DB is saturated on writes. What actually helps?",
+             "choices": [
+                 "Sharding — partition writes across nodes by a well-chosen key",
+                 "Adding read replicas",
+                 "Raising the connection pool size",
+                 "Adding a CDN"],
+             "answer": "Sharding — partition writes across nodes by a well-chosen key",
+             "explanation": "Replicas only scale reads — every replica still applies every write. Partitioning the write stream is the move; the shard key choice is the real design decision."},
+            {"kind": "free",
+             "prompt": "A user updates their profile, then immediately sees the old value. Why, and how do you fix it?",
+             "answer": "Replication lag: the write went to the leader, the follow-up read hit a stale follower. Fixes: read-your-own-writes consistency — route the user's reads to the leader for a short window after a write (or track a session LSN/timestamp and only serve from replicas that have caught up), or serve that page from the leader.",
+             "explanation": "Classic async-replication symptom. Naming 'read-your-own-writes' and giving a concrete routing fix is the senior answer."},
+        ],
+    },
+    {
+        "slug": "auth-jwt-oauth",
+        "track": "CS Fundamentals",
+        "title": "Authentication: Sessions, JWT & OAuth 2.0",
+        "difficulty": "core",
+        "tags": "auth,security,jwt,oauth,backend",
+        "summary": "What actually happens after 'Login': sessions vs tokens, refresh flows, OAuth roles, PKCE.",
+        "audience": "senior",
+        "lesson_md": (
+            "**Authentication** proves who you are; **authorization** decides what you may do.\n\n"
+            "**Session-based**: server stores session state, browser holds an opaque cookie. Easy to revoke (delete the session); "
+            "needs sticky sessions or a shared session store to scale.\n\n"
+            "**JWT (stateless tokens)**: the server signs a claims payload; any instance can verify without a lookup. "
+            "Trade-off: you can't revoke a stolen JWT before it expires — so keep **access tokens short-lived** (minutes) and pair with a "
+            "**refresh token** (long-lived, stored server-side, revocable, ideally rotated on each use). "
+            "JWTs are signed, not encrypted — never put secrets in the payload; always validate `alg`, `exp`, `aud`, `iss`.\n\n"
+            "**OAuth 2.0** is *delegated authorization* (let app X act on my data at Y) — with OIDC layered on top for login. "
+            "Know the roles (resource owner, client, authorization server, resource server) and the **authorization-code flow**; "
+            "public clients (SPAs, mobile) must add **PKCE** because they can't hold a client secret.\n\n"
+            "Cookie hygiene: `HttpOnly` (no JS access → XSS-resistant), `Secure`, `SameSite` (CSRF mitigation)."
+        ),
+        "cards": [
+            {"kind": "mcq",
+             "prompt": "Why pair a short-lived JWT access token with a refresh token instead of one long-lived JWT?",
+             "choices": [
+                 "Stateless JWTs can't be revoked, so the short expiry bounds the damage of a stolen token while the revocable refresh token preserves the session",
+                 "Two tokens are harder to guess than one",
+                 "JWTs expire on their own and refresh tokens don't",
+                 "It reduces the size of each HTTP request"],
+             "answer": "Stateless JWTs can't be revoked, so the short expiry bounds the damage of a stolen token while the revocable refresh token preserves the session",
+             "explanation": "The refresh token lives server-side (revocable, rotatable); the access token stays stateless and fast to verify. This split is the standard answer to 'how do you log someone out with JWTs'."},
+            {"kind": "free",
+             "prompt": "Walk through the OAuth 2.0 authorization-code flow with PKCE for a mobile app. Why is PKCE needed?",
+             "answer": "App generates a random code_verifier and sends its hash (code_challenge) with the auth request; user authenticates at the authorization server, which redirects back with an authorization code; app exchanges code + code_verifier for tokens, and the server checks the verifier hashes to the original challenge. PKCE is needed because a mobile/SPA client can't keep a client secret and the redirect can be intercepted — the verifier proves the token requester is the same party that started the flow.",
+             "explanation": "The interviewer is checking you know why the code exchange exists at all (tokens never transit the browser) and what attack PKCE kills (authorization-code interception)."},
+        ],
+    },
+    {
+        "slug": "database-indexing",
+        "track": "CS Fundamentals",
+        "title": "Indexing & Query Optimization",
+        "difficulty": "core",
+        "tags": "databases,sql,indexes,performance,backend",
+        "summary": "B-tree mechanics, composite-index rules, and why writes pay for every index.",
+        "audience": "senior",
+        "lesson_md": (
+            "An index trades write cost and space for read speed. Most are **B+ trees**: sorted keys, O(log n) lookups, great for "
+            "equality *and* range scans; leaves point at rows (or contain them, in a clustered index).\n\n"
+            "Rules that answer 90% of interview questions:\n"
+            "- **Leftmost prefix**: an index on `(a, b, c)` serves filters on `a`, `a,b`, `a,b,c` — but not `b` or `c` alone.\n"
+            "- **Range stops the chain**: after a range condition on one column, later index columns can't be used for filtering.\n"
+            "- **Covering index**: if the index contains every column the query needs, the table lookup is skipped entirely.\n"
+            "- **Functions kill index use**: `WHERE lower(email) = ...` can't use a plain index on `email` (needs a functional index).\n"
+            "- **Selectivity matters**: indexing a 2-value column rarely helps; the planner will scan anyway.\n\n"
+            "Every index slows every INSERT/UPDATE/DELETE (each one must be maintained) — 'index everything' is a write-amplification bug.\n\n"
+            "Debugging tool #1: `EXPLAIN (ANALYZE)` — check for seq scans on hot paths, misestimated row counts, and sorts that an index could absorb."
+        ),
+        "cards": [
+            {"kind": "mcq",
+             "prompt": "With an index on (last_name, first_name), which query CANNOT use it effectively?",
+             "choices": [
+                 "WHERE first_name = 'Ada'",
+                 "WHERE last_name = 'Lovelace'",
+                 "WHERE last_name = 'Lovelace' AND first_name = 'Ada'",
+                 "WHERE last_name LIKE 'Love%'"],
+             "answer": "WHERE first_name = 'Ada'",
+             "explanation": "Leftmost-prefix rule: the index is sorted by last_name first, so a filter on first_name alone can't navigate the tree."},
+            {"kind": "free",
+             "prompt": "A production query got slow. Walk me through how you'd diagnose and fix it.",
+             "answer": "Reproduce with EXPLAIN ANALYZE; look for sequential scans on large tables, row-estimate vs actual mismatches (stale statistics → ANALYZE), and expensive sorts/joins. Fix options in order: add/adjust an index matching the filter+sort (mind leftmost-prefix), make it covering if the query is hot, rewrite the query (avoid functions on indexed columns, avoid SELECT *), or restructure (denormalize/cache) if the access pattern fundamentally doesn't fit. Verify with EXPLAIN again and check write-path cost of the new index.",
+             "explanation": "Senior signal: a measurement-first loop (EXPLAIN → hypothesis → fix → re-measure) plus awareness that each index taxes writes."},
+        ],
+    },
+    {
+        "slug": "ticket-booking-design",
+        "track": "System Design",
+        "title": "Design a Ticket-Booking System (BookMyShow)",
+        "difficulty": "advanced",
+        "tags": "system-design,concurrency,transactions,case-study",
+        "summary": "The classic contention problem: sell each seat exactly once, at scale, with payments in the loop.",
+        "audience": "senior",
+        "lesson_md": (
+            "Booking systems are interview favorites because the hard part is **contention**: thousands of users racing for the same seats.\n\n"
+            "**Core flow**: browse (heavy reads, cacheable) → select seats → *hold* → pay → confirm.\n\n"
+            "**The seat-hold pattern** is the crux:\n"
+            "- On selection, place a **short TTL lock** on the seats (e.g. 5–10 min) so the user can pay without losing them.\n"
+            "- Implement with a row status (`AVAILABLE → HELD(expiry) → BOOKED`) updated under a transaction, or a Redis lock keyed by seat. "
+            "Expired holds are reaped (or checked lazily on read).\n"
+            "- The transition must be atomic and guarded: `UPDATE seats SET status='HELD' WHERE id IN (...) AND status='AVAILABLE'` — "
+            "check affected-row count == seats requested, else roll back (someone beat you).\n\n"
+            "**Payments** are slow and external → do them *outside* the DB transaction; the hold TTL covers the gap. Handle payment-success-after-"
+            "hold-expiry (refund or re-check) and use **idempotency keys** so retries don't double-book.\n\n"
+            "**Scale notes**: browse traffic ≫ booking traffic — cache screenings/availability aggressively with short TTLs; shard by city or venue; "
+            "the seat map for one show is small, so per-show contention is the bottleneck, not data volume. Popular-show on-sale spikes → queue admission (virtual waiting room)."
+        ),
+        "cards": [
+            {"kind": "mcq",
+             "prompt": "Two users click the same seat at the same moment. What prevents a double sale?",
+             "choices": [
+                 "An atomic conditional transition (AVAILABLE→HELD) that only one request can win, verified by affected-row count",
+                 "Optimistically letting both pay and refunding the slower one",
+                 "Caching the seat map so both see it as taken",
+                 "Making the frontend grey out the seat faster"],
+             "answer": "An atomic conditional transition (AVAILABLE→HELD) that only one request can win, verified by affected-row count",
+             "explanation": "Correctness lives in the storage layer's atomicity, not the UI. The conditional UPDATE (or equivalent lock) is the exactly-once gate; everything else is UX."},
+            {"kind": "free",
+             "prompt": "Why should the payment call live outside the database transaction that holds the seats, and what new problems does that create?",
+             "answer": "A DB transaction held open across an external payment call (seconds, can hang) would pin locks/connections and collapse throughput. Instead: commit the HELD state with a TTL, call the payment provider, then confirm. New problems: payment succeeds after the hold expired (detect and refund or re-acquire), payment retries double-charging (idempotency keys), and reconciliation for crashes between payment and confirm (a sweeper comparing provider records to bookings).",
+             "explanation": "This is the distributed-transaction trap: never wrap an external call in a lock. The TTL-hold + idempotency + reconciliation trio is the senior-level answer."},
+        ],
+    },
+    {
+        "slug": "debugging-interviews",
+        "track": "DSA",
+        "title": "The Debugging Interview (Post-LeetCode Formats)",
+        "difficulty": "core",
+        "tags": "debugging,testing,interview-format,meta",
+        "summary": "Interviews are shifting toward debugging broken systems, testing strategy, and real PR workflows.",
+        "audience": "senior",
+        "lesson_md": (
+            "Platforms (HackerRank among them) are rebuilding interview formats away from pure algorithms toward what seniors do daily: "
+            "**fix broken code, reason about tests, and ship reviewable PRs** — partly because AI made puzzle-solving cheap to fake.\n\n"
+            "**Debugging rounds**: you get a failing service/test and limited time. Approach like an incident:\n"
+            "1. Reproduce reliably; read the actual error, not what you assume it says.\n"
+            "2. Bisect the search space — logs, recent diffs, binary-search the pipeline (is the bug before or after this point?).\n"
+            "3. Form one hypothesis at a time and design the *cheapest observation* that falsifies it.\n"
+            "4. Fix the cause, not the symptom; add the regression test; say out loud how you'd prevent the class of bug.\n\n"
+            "**Testing-pyramid questions**: many fast unit tests at the base, fewer integration tests, few E2E — know *why* (speed, flakiness, "
+            "localization of failures) and when to break the rule.\n\n"
+            "**PR rounds**: small diffs, clear description of intent and risk, tests included, responsive to review comments.\n\n"
+            "Practice: sadservers.com (broken-server scenarios), fixing failing tests in open-source repos, and narrating your debugging out loud — the narration *is* the signal."
+        ),
+        "cards": [
+            {"kind": "mcq",
+             "prompt": "In a timed debugging round, what should you do FIRST with a failing system?",
+             "choices": [
+                 "Reproduce the failure and read the actual error output carefully",
+                 "Start adding print statements everywhere",
+                 "Rewrite the suspicious-looking module",
+                 "Check the code style for issues"],
+             "answer": "Reproduce the failure and read the actual error output carefully",
+             "explanation": "Reproduction turns guessing into measurement, and most candidates lose minutes acting on a misread error message. Observation before mutation."},
+            {"kind": "free",
+             "prompt": "Why does the testing pyramid put most tests at the unit level, and when is it right to violate that?",
+             "answer": "Unit tests are fast, deterministic, and localize failures to a function — so you can afford thousands and run them on every change. Integration/E2E tests are slower, flakier, and a failure implicates the whole stack. Violate it when the risk lives in the seams: heavy integration layers (ORMs, network protocols), config-driven systems, or thin-logic services where mocked unit tests would only test the mocks.",
+             "explanation": "Knowing the why (feedback speed + failure localization) and the legitimate exceptions separates a memorized pyramid from an understood one."},
+        ],
+    },
+    {
+        "slug": "agentic-ai-concepts",
+        "track": "System Design",
+        "title": "Agentic AI Systems: Core Concepts",
+        "difficulty": "advanced",
+        "tags": "genai,agents,llm,inference,ml-system-design",
+        "summary": "The vocabulary of production agent systems: harness, loop, context, tools, evals.",
+        "audience": "senior",
+        "lesson_md": (
+            "GenAI system-design rounds increasingly assume this vocabulary:\n\n"
+            "- **Harness engineering** — the environment the agent acts in: sandbox, filesystem/runtime surface, permissions. "
+            "The harness bounds the blast radius of a wrong action.\n"
+            "- **Loop engineering** — when the agent iterates vs stops: max steps, budgets, convergence checks, human-approval gates for "
+            "irreversible actions.\n"
+            "- **Context engineering** — getting the right information into the window and keeping the wrong stuff out: retrieval, "
+            "summarization/compaction of history, structured state instead of raw transcripts. Context is the scarce resource.\n"
+            "- **Tool design** — few, well-named tools with typed inputs and crisp failure messages beat many overlapping ones; "
+            "the model can only be as reliable as the tool contract is clear.\n"
+            "- **Evals & guardrails** — regression suites of real tasks (not vibes), output validation, and rate/permission limits. "
+            "Without evals, every prompt change is a blind deploy.\n\n"
+            "Design-round framing: an agent system is a *state machine where an LLM chooses transitions* — so the classic questions "
+            "(idempotency, retries, observability, failure isolation) all still apply, plus one new one: how do you bound and evaluate "
+            "a non-deterministic component?"
+        ),
+        "cards": [
+            {"kind": "mcq",
+             "prompt": "An LLM agent occasionally issues a destructive action (e.g. deleting records). What's the *systems* fix?",
+             "choices": [
+                 "Constrain the harness: sandbox/permissions that make the action impossible, plus approval gates for irreversible steps",
+                 "Add 'please be careful' to the prompt",
+                 "Use a larger model",
+                 "Lower the temperature to 0"],
+             "answer": "Constrain the harness: sandbox/permissions that make the action impossible, plus approval gates for irreversible steps",
+             "explanation": "Prompting reduces probability; the harness sets it to zero. Treat the model as an untrusted component and enforce safety at the boundary — same instinct as input validation."},
+            {"kind": "free",
+             "prompt": "Your agent's context window fills up during long tasks and quality degrades. What are your options?",
+             "answer": "Context engineering: summarize/compact older turns into structured state; store working data in files or a scratchpad and retrieve on demand instead of carrying it in-window; split the task across sub-agents that each get a focused context and return only conclusions; and rank/filter retrievals so only task-relevant content enters the window. Measure with evals that specifically include long-horizon tasks.",
+             "explanation": "The interviewer wants 'context is a budget to manage' — compaction, externalized state, and decomposition are the standard levers."},
+        ],
+    },
 ]
