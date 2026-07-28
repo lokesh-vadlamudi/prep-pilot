@@ -414,6 +414,7 @@ SEED: list[dict] = [
             "- Costs: cross-shard joins/transactions get hard, rebalancing is operationally risky, and a bad shard key is nearly "
             "irreversible — pick the key that matches your dominant access pattern (e.g. user_id for a user-centric app).\n\n"
             "Interview shape: state read:write ratio first — it decides whether you reach for replicas, shards, or just a cache."
+                    "\n\n**Go deeper (HelloInterview):** [Sharding](https://www.hellointerview.com/learn/system-design/core-concepts/sharding) · [Consistent Hashing](https://www.hellointerview.com/learn/system-design/core-concepts/consistent-hashing) · [Scaling Writes pattern](https://www.hellointerview.com/learn/system-design/patterns/scaling-writes)"
         ),
         "cards": [
             {"kind": "mcq",
@@ -451,6 +452,7 @@ SEED: list[dict] = [
             "Know the roles (resource owner, client, authorization server, resource server) and the **authorization-code flow**; "
             "public clients (SPAs, mobile) must add **PKCE** because they can't hold a client secret.\n\n"
             "Cookie hygiene: `HttpOnly` (no JS access → XSS-resistant), `Secure`, `SameSite` (CSRF mitigation)."
+                    "\n\n**Go deeper (HelloInterview):** [API Design](https://www.hellointerview.com/learn/system-design/core-concepts/api-design)"
         ),
         "cards": [
             {"kind": "mcq",
@@ -487,6 +489,7 @@ SEED: list[dict] = [
             "- **Selectivity matters**: indexing a 2-value column rarely helps; the planner will scan anyway.\n\n"
             "Every index slows every INSERT/UPDATE/DELETE (each one must be maintained) — 'index everything' is a write-amplification bug.\n\n"
             "Debugging tool #1: `EXPLAIN (ANALYZE)` — check for seq scans on hot paths, misestimated row counts, and sorts that an index could absorb."
+                    "\n\n**Go deeper (HelloInterview):** [Database Indexing](https://www.hellointerview.com/learn/system-design/core-concepts/db-indexing) · [PostgreSQL deep-dive](https://www.hellointerview.com/learn/system-design/deep-dives/postgres)"
         ),
         "cards": [
             {"kind": "mcq",
@@ -525,6 +528,7 @@ SEED: list[dict] = [
             "hold-expiry (refund or re-check) and use **idempotency keys** so retries don't double-book.\n\n"
             "**Scale notes**: browse traffic ≫ booking traffic — cache screenings/availability aggressively with short TTLs; shard by city or venue; "
             "the seat map for one show is small, so per-show contention is the bottleneck, not data volume. Popular-show on-sale spikes → queue admission (virtual waiting room)."
+                    "\n\n**Go deeper (HelloInterview):** [Ticketmaster breakdown](https://www.hellointerview.com/learn/system-design/problem-breakdowns/ticketmaster) · [BookMyShow LLD](https://www.hellointerview.com/learn/low-level-design/problem-breakdowns/bookmyshow) · [Dealing with Contention](https://www.hellointerview.com/learn/system-design/patterns/dealing-with-contention)"
         ),
         "cards": [
             {"kind": "mcq",
@@ -562,6 +566,7 @@ SEED: list[dict] = [
             "localization of failures) and when to break the rule.\n\n"
             "**PR rounds**: small diffs, clear description of intent and risk, tests included, responsive to review comments.\n\n"
             "Practice: sadservers.com (broken-server scenarios), fixing failing tests in open-source repos, and narrating your debugging out loud — the narration *is* the signal."
+                    "\n\n**Go deeper (HelloInterview):** [AI-Coding track](https://www.hellointerview.com/learn/ai-coding/overview/introduction) — the adjacent new format: drive an AI in a real codebase, verify and test its output"
         ),
         "cards": [
             {"kind": "mcq",
@@ -602,6 +607,7 @@ SEED: list[dict] = [
             "Design-round framing: an agent system is a *state machine where an LLM chooses transitions* — so the classic questions "
             "(idempotency, retries, observability, failure isolation) all still apply, plus one new one: how do you bound and evaluate "
             "a non-deterministic component?"
+                    "\n\n**Go deeper (HelloInterview):** [ChatGPT system design](https://www.hellointerview.com/learn/system-design/problem-breakdowns/chatgpt) · [Vector Databases](https://www.hellointerview.com/learn/system-design/deep-dives/vector-databases) · [ML System Design in a Hurry](https://www.hellointerview.com/learn/ml-system-design/in-a-hurry/introduction)"
         ),
         "cards": [
             {"kind": "mcq",
