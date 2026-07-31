@@ -308,6 +308,102 @@ button { font-family: inherit; cursor: pointer; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; transform: none; }
 .btn.wide { width: 100%; }
 
+/* ---------------- Adaptive learn-next ---------------- */
+.learn-next {
+  overflow: hidden;
+  border-color: rgba(244, 88, 28, 0.24);
+  background:
+    linear-gradient(135deg, rgba(244, 88, 28, 0.055), transparent 52%),
+    var(--paper);
+}
+.learn-next::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--course);
+}
+.learn-next.mode-review::before { background: #2563eb; }
+.learn-next.mode-practice::before { background: #7c3aed; }
+.learn-next h2 {
+  font-family: var(--display);
+  font-size: clamp(23px, 2vw, 31px);
+  line-height: 1.08;
+  margin: 16px 0 8px;
+  color: var(--ink);
+}
+.learn-next-reason {
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 0;
+  max-width: 70ch;
+}
+.learn-signals {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 17px;
+}
+.learn-signals > span:not(.chip) {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--faint);
+  padding: 5px 9px;
+  background: rgba(20, 38, 63, 0.045);
+  border-radius: 5px;
+}
+.learn-signals b { color: var(--ink); }
+.learn-objective {
+  margin-top: 17px;
+  padding: 14px 16px;
+  border: 1px solid var(--hairline-soft);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.62);
+}
+.learn-objective .mono,
+.up-next .mono,
+.dgx-diagnosis .mono {
+  color: var(--faint);
+  font-size: 10.5px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+.learn-objective p { margin: 7px 0 8px; color: var(--ink); }
+.mastery-state {
+  font-family: var(--mono);
+  color: var(--course-deep);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+.learn-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 17px; }
+.learn-actions .btn { display: inline-flex; align-items: center; text-decoration: none; }
+.up-next {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline-soft);
+}
+.up-next a { font-weight: 600; }
+.dgx-diagnosis {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  background: #f5f8ff;
+}
+.dgx-diagnosis p { margin: 7px 0 0; color: var(--muted); line-height: 1.5; }
+.dgx-diagnosis .check-question { color: var(--ink); font-weight: 600; }
+.dgx-diagnosis.unavailable { background: var(--paper-2); border-color: var(--hairline-soft); }
+.adaptive-note {
+  color: var(--faint);
+  font-size: 12px;
+  margin: 0 0 12px;
+}
+
 /* ---------------- Review card ---------------- */
 .review-stage { max-width: 720px; margin: 0 auto; }
 .review-progress {

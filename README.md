@@ -17,7 +17,9 @@ self-growing curriculum. Built to run on the **Mac mini** and use the **DGX**
 
 ## What it does
 - **Daily "pre-flight"** — due spaced-repetition reviews + a few new topics each day, with a streak.
+- **Adaptive "Learn Next"** — adjusts new-topic load from recent recall and due reviews, explains the choice, and previews what comes next.
 - **SM-2 spaced repetition** — everything you learn is scheduled for review so it sticks.
+- **DGX diagnosis** — on demand, the local model interprets recent mistakes, names a teaching focus, and asks a targeted retrieval question without controlling the scheduler.
 - **Two graders** — MCQs graded instantly; free-text / whiteboard answers graded by the DGX brain with senior-level feedback.
 - **Self-updating** — a nightly job authors fresh, stack-relevant concepts (Go / Python / TS / React / cloud / Terraform). Also on demand from the Syllabus page.
 - **Ask the tutor** — free-form Q&A and system-design coaching.

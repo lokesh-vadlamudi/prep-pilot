@@ -20,7 +20,48 @@ export type Card = {
   is_new: boolean;
 };
 
-export type Plan = { date: string; reviews: Card[]; new: Card[]; streak: number };
+export type Plan = {
+  date: string;
+  reviews: Card[];
+  new: Card[];
+  streak: number;
+  adaptive?: { new_topic_limit: number; reason: string; recent_accuracy: number | null };
+};
+
+export type LearnNext = {
+  date: string;
+  mode: "recover" | "review" | "learn" | "practice";
+  title: string;
+  reason: string;
+  objective: string;
+  estimated_minutes: number;
+  action: { kind: "review_session" | "topic" | "coding_problem"; href: string; label: string };
+  signals: {
+    due_reviews: number;
+    recent_accuracy: number | null;
+    attempts_considered: number;
+    weak_track: string | null;
+    new_topic_limit: number;
+  };
+  concept: LearnNextConcept | null;
+  up_next: LearnNextConcept | null;
+};
+
+export type LearnNextConcept = {
+  id: number;
+  title: string;
+  track: string;
+  difficulty: string;
+  summary: string;
+  mastery_state: "Unseen" | "Learning" | "Practiced" | "Retained";
+};
+
+export type LearningDiagnosis = {
+  available: boolean;
+  diagnosis: string;
+  teaching_focus: string;
+  check_question: string;
+};
 
 export type SubmitResult = {
   grade: number;
@@ -43,6 +84,9 @@ export const api = {
   logout: () => req("/api/auth/logout", { method: "POST" }),
 
   today: (): Promise<Plan> => req("/api/today"),
+  learnNext: (): Promise<LearnNext> => req("/api/learn-next"),
+  diagnoseLearnNext: (): Promise<LearningDiagnosis> =>
+    req("/api/learn-next/diagnose", { method: "POST" }),
   roadmap: () => req("/api/roadmap"),
   books: () => req("/api/books"),
   card: (id: number) => req(`/api/card/${id}`),

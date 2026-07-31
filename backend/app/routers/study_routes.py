@@ -20,6 +20,22 @@ def today(user: User = RequireUser, session: Session = Depends(get_session)):
     return service.build_daily_plan(session, user)
 
 
+@router.get("/learn-next")
+def learn_next(user: User = RequireUser, session: Session = Depends(get_session)):
+    return service.build_learn_next(session, user)
+
+
+@router.post("/learn-next/diagnose")
+async def diagnose_learn_next(
+    user: User = RequireUser, session: Session = Depends(get_session)
+):
+    plan = service.build_learn_next(session, user)
+    evidence = service.recent_learning_evidence(session, user.id)
+    return await tutor.diagnose_learning_plan(
+        plan, evidence, learner=tutor.learner_context(user)
+    )
+
+
 @router.get("/card/{card_id}")
 def card_detail(card_id: int, user: User = RequireUser, session: Session = Depends(get_session)):
     detail = service.get_card_detail(session, card_id, user.id)

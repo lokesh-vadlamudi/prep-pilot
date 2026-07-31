@@ -35,6 +35,42 @@ def learner_context(user: User | None) -> str:
             lang=f"Their preferred language is {lang.title()} — use it for all code examples. ")
     return USER_CONTEXT
 
+
+async def diagnose_learning_plan(plan: dict, evidence: list[dict], learner: str = "") -> dict:
+    """Use DGX to interpret learning evidence without letting it reschedule cards."""
+    system = (
+        "You are the diagnostic layer in an adaptive interview-learning system. "
+        + (learner or USER_CONTEXT)
+        + " The deterministic scheduler has already chosen the next action. Do not replace it. "
+        "Select one recent missed concept. Describe it as an observed signal ('a recent miss "
+        "suggests...'), not a fundamental deficiency. Never claim that misses on unrelated topics "
+        "cause one another. Ground the diagnosis and one short retrieval question in the supplied "
+        "question, feedback, and reference key points; check the technical premise of the question. "
+        "If evidence is sparse, say so rather than inventing a weakness. Respond ONLY with JSON: "
+        '{"diagnosis":"<1-2 sentences>","teaching_focus":"<one concrete focus>",'
+        '"check_question":"<one question>"}'
+    )
+    payload = json.dumps({"recommendation": plan, "recent_evidence": evidence}, default=str)
+    try:
+        data = await chat_json(
+            [{"role": "system", "content": system}, {"role": "user", "content": payload}],
+            temperature=0.2,
+            num_predict=700,
+        )
+        return {
+            "available": True,
+            "diagnosis": str(data.get("diagnosis", "")).strip(),
+            "teaching_focus": str(data.get("teaching_focus", "")).strip(),
+            "check_question": str(data.get("check_question", "")).strip(),
+        }
+    except Exception:  # noqa: BLE001 — the deterministic plan remains fully usable
+        return {
+            "available": False,
+            "diagnosis": "DGX diagnosis is temporarily unavailable. Your adaptive plan is still active.",
+            "teaching_focus": "",
+            "check_question": "",
+        }
+
 # The app renders Mermaid; tell the model to draw when a picture helps.
 DIAGRAM_HINT = (
     " When a diagram would make the explanation clearer (linked lists, trees, graphs, a "

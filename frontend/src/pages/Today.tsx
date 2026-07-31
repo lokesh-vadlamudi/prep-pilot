@@ -1,7 +1,98 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, Card, Plan, diffClass } from "../api";
+import { api, Card, LearnNext, LearningDiagnosis, Plan, diffClass, trackClass } from "../api";
 import ReviewCard from "../components/ReviewCard";
+
+function LearnNextCard({ onStart }: { onStart: () => void }) {
+  const [next, setNext] = useState<LearnNext | null>(null);
+  const [diagnosis, setDiagnosis] = useState<LearningDiagnosis | null>(null);
+  const [diagnosing, setDiagnosing] = useState(false);
+
+  useEffect(() => { api.learnNext().then(setNext).catch(() => {}); }, []);
+  if (!next) return null;
+
+  async function diagnose() {
+    setDiagnosing(true);
+    try {
+      setDiagnosis(await api.diagnoseLearnNext());
+    } catch {
+      setDiagnosis({
+        available: false,
+        diagnosis: "DGX diagnosis could not be reached. Your adaptive plan is still active.",
+        teaching_focus: "",
+        check_question: "",
+      });
+    } finally {
+      setDiagnosing(false);
+    }
+  }
+
+  const accuracy = next.signals.recent_accuracy;
+  const modeLabel = {
+    recover: "recovery",
+    review: "review",
+    learn: "new concept",
+    practice: "practice",
+  }[next.mode];
+
+  return (
+    <section className={`panel learn-next mode-${next.mode}`} aria-labelledby="learn-next-title">
+      <div className="kicker">
+        <span className="eyebrow">Adaptive · learn next</span>
+        <span className="chip ai">{modeLabel}</span>
+      </div>
+      <h2 id="learn-next-title">{next.title}</h2>
+      <p className="learn-next-reason">{next.reason}</p>
+
+      <div className="learn-signals" aria-label="Signals used for this recommendation">
+        <span><b>{next.signals.due_reviews}</b> due</span>
+        <span><b>{accuracy == null ? "—" : `${Math.round(accuracy * 100)}%`}</b> recent recall</span>
+        {next.signals.weak_track && (
+          <span className={`chip ${trackClass(next.signals.weak_track)}`}>
+            focus · {next.signals.weak_track}
+          </span>
+        )}
+      </div>
+
+      <div className="learn-objective">
+        <span className="mono">Objective · {next.estimated_minutes} min</span>
+        <p>{next.objective}</p>
+        {next.concept && (
+          <span className="mastery-state">
+            {next.concept.mastery_state} · {next.concept.difficulty}
+          </span>
+        )}
+      </div>
+
+      <div className="learn-actions">
+        {next.action.kind === "review_session" ? (
+          <button className="btn" onClick={onStart}>{next.action.label}</button>
+        ) : (
+          <Link className="btn" to={next.action.href}>{next.action.label}</Link>
+        )}
+        <button className="btn ghost" onClick={diagnose} disabled={diagnosing}>
+          {diagnosing ? "DGX is analyzing…" : diagnosis ? "Refresh DGX diagnosis" : "Ask DGX why"}
+        </button>
+      </div>
+
+      {next.up_next && (
+        <div className="up-next">
+          <span className="mono">After reviews</span>
+          <Link to={`/topics/${next.up_next.id}`}>{next.up_next.title} →</Link>
+        </div>
+      )}
+
+      {diagnosis && (
+        <div className={`dgx-diagnosis${diagnosis.available ? "" : " unavailable"}`} aria-live="polite">
+          <span className="mono">DGX diagnosis</span>
+          <p>{diagnosis.diagnosis}</p>
+          {diagnosis.teaching_focus && <p><b>Teach next:</b> {diagnosis.teaching_focus}</p>}
+          {diagnosis.check_question && <p className="check-question">{diagnosis.check_question}</p>}
+        </div>
+      )}
+    </section>
+  );
+}
 
 function Mission() {
   const [rm, setRm] = useState<any>(null);
@@ -187,6 +278,7 @@ export default function Today() {
 
         <div className="deck">
           <div className="s7 stack">
+          <LearnNextCard onStart={() => setStarted(true)} />
           <div className="panel">
             <div className="readout">
               <div className="metric">
@@ -195,7 +287,7 @@ export default function Today() {
               </div>
               <div className="metric">
                 <div className="num teal">{plan.new.length}</div>
-                <div className="lbl">New topics</div>
+                <div className="lbl">Adaptive new</div>
               </div>
               <div className="metric">
                 <div className="num plain">{plan.streak}</div>
@@ -203,6 +295,9 @@ export default function Today() {
               </div>
             </div>
             <div style={{ marginTop: 26 }}>
+              {plan.adaptive && (
+                <p className="adaptive-note">{plan.adaptive.reason}</p>
+              )}
               {total > 0 ? (
                 <button className="btn" onClick={() => setStarted(true)}>
                   Begin session · {total} card{total === 1 ? "" : "s"}
