@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-from app import service, tutor
+from app import mock, service, tutor
 from app.models import Attempt, Card, Concept, User
 
 
@@ -143,6 +143,36 @@ class DgxDiagnosisTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["available"])
         self.assertEqual(result["teaching_focus"], model_result["teaching_focus"])
         self.assertNotIn("action", result)
+
+
+class MockInterviewScoringTests(unittest.IsolatedAsyncioTestCase):
+    async def test_empty_interview_is_not_scored_by_llm(self):
+        transcript = [
+            {"role": "interviewer", "content": "Tell me about your approach."},
+            {"role": "candidate", "content": "   "},
+        ]
+
+        with patch("app.mock.chat_json", new=AsyncMock()) as scorer:
+            result = await mock.score("coding", "arrays", transcript)
+
+        scorer.assert_not_awaited()
+        self.assertEqual(result["overall"], 0)
+        self.assertEqual(result["verdict"], "not evaluated")
+        self.assertEqual(result["strengths"], [])
+        self.assertTrue(all(item["score"] == 0 for item in result["dimensions"]))
+
+    async def test_candidate_response_is_scored_normally(self):
+        transcript = [
+            {"role": "interviewer", "content": "Tell me about your approach."},
+            {"role": "candidate", "content": "I would start with a hash map."},
+        ]
+        expected = {"overall": 3, "verdict": "hire", "dimensions": []}
+
+        with patch("app.mock.chat_json", new=AsyncMock(return_value=expected)) as scorer:
+            result = await mock.score("coding", "arrays", transcript)
+
+        scorer.assert_awaited_once()
+        self.assertEqual(result, expected)
 
 
 if __name__ == "__main__":

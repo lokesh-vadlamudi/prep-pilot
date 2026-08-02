@@ -75,6 +75,29 @@ _SIGNALS = (
 )
 
 
+def has_candidate_response(transcript: list[dict]) -> bool:
+    """Return whether the candidate supplied any non-whitespace response."""
+    return any(
+        turn.get("role") == "candidate" and str(turn.get("content", "")).strip()
+        for turn in transcript
+    )
+
+
+def insufficient_evidence_rubric(kind: str) -> dict:
+    """Return a deterministic result when an interview ends before an answer."""
+    dimensions = _RUBRIC_DIMS.get(kind, _RUBRIC_DIMS["coding"]).split(", ")
+    return {
+        "dimensions": [
+            {"name": name, "score": 0, "note": "No candidate response was provided."}
+            for name in dimensions
+        ],
+        "overall": 0,
+        "verdict": "not evaluated",
+        "strengths": [],
+        "improvements": ["Complete enough of the interview to provide evidence for evaluation."],
+    }
+
+
 def _turns_to_messages(kind: str, transcript: list[dict]) -> list[dict]:
     """Map our transcript to chat messages (interviewer = assistant, candidate = user)."""
     msgs = []
@@ -114,12 +137,16 @@ async def next_turn(kind: str, topic: str, difficulty: str, transcript: list[dic
 
 
 async def score(kind: str, topic: str, transcript: list[dict], learner: str = "") -> dict:
+    if not has_candidate_response(transcript):
+        return insufficient_evidence_rubric(kind)
+
     dims = _RUBRIC_DIMS.get(kind, _RUBRIC_DIMS["coding"])
     sys = (
         "You are a calibrated interview evaluator. " + (learner or USER_CONTEXT) + " " + _SIGNALS +
         f" Score this {kind.replace('_', ' ')} interview transcript on each dimension ({dims}) "
         "from 1-5 (1 poor, 3 hire-bar, 5 outstanding). Judge the process, not just the artifact: "
-        "how they thought, communicated, handled pressure, and used hints. Be honest and specific "
+        "how they thought, communicated, handled pressure, and used hints. Use only evidence that "
+        "appears in the transcript; never infer or invent an answer, code, or behavior. Be honest and specific "
         "— every note must cite something the candidate actually did or failed to do. In "
         "'improvements', prefer concrete rehearsable behaviors (e.g. ‘state complexity before "
         "coding’) over generic advice. Respond ONLY with JSON:\n"
