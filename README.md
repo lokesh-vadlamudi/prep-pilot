@@ -44,12 +44,45 @@ cd backend && uv sync && uv run uvicorn app.main:app --port 8899 --reload
 cd frontend && npm install && npm run dev   # http://localhost:5177
 ```
 
-## Deploy / update the mini
+## Environments
+
+| Environment | Source | URL | Mac mini service | Data |
+|---|---|---|---|---|
+| Development | committed `main` (or an explicit branch preview) | `https://<mini>.<tailnet>.ts.net:10004` | `com.preppilot.dev` on `127.0.0.1:8779` | isolated `~/prep-pilot-dev/backend/data/prep.db` |
+| Production | exact `vMAJOR.MINOR.PATCH` tag | `https://<mini>.<tailnet>.ts.net:10000` | `com.preppilot.server` on `127.0.0.1:8778` | live `~/prep-pilot/backend/data/prep.db` |
+
+Development also has its own login cookie, secrets, logs, code directory, and
+database. Its background content scheduler is disabled so it cannot duplicate
+production jobs. A purple banner is always visible in the dev UI.
+
+## Deploy / release workflow
+
+Deploy the latest committed `main` to the isolated dev site:
+
 ```bash
-./deploy/deploy.sh          # builds, rsyncs, installs deps, (re)loads LaunchAgent, sets Tailscale Serve
+bash deploy/deploy-dev.sh
 ```
+
+For a temporary feature-branch preview, commit the branch first and use:
+
+```bash
+PREPPILOT_DEV_ALLOW_BRANCH=1 bash deploy/deploy-dev.sh
+```
+
+After verifying dev, merge to `main`, deploy dev once more, then create and
+deploy an immutable production release:
+
+```bash
+bash deploy/release.sh v0.2.0
+```
+
+`release.sh` requires a clean `main` matching `origin/main`, creates and pushes
+the annotated tag, and deploys that exact revision. Direct production deploys
+are blocked unless `HEAD` is an exact semantic-version tag.
+
 The deploy target is read from `deploy/deploy.env` (untracked) — see `deploy/deploy.env.example`.
-Then open `https://<your-machine>.<your-tailnet>.ts.net:10000` and set your passcode on first visit.
+The first dev visit prompts for a separate dev account; production credentials
+and learner data are intentionally not copied.
 
 ## Tuning
 `backend/app/config.py` — `new_topics_per_day`, `max_reviews_per_day`,

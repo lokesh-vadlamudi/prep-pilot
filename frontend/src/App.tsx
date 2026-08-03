@@ -15,46 +15,65 @@ import FlightPlan from "./pages/FlightPlan";
 const Solve = lazy(() => import("./pages/Solve"));
 
 type Auth = { loading: boolean; authed: boolean; user: string; invite?: string };
+type Runtime = { environment: string; release: string };
 
 export default function App() {
   const [auth, setAuth] = useState<Auth>({ loading: true, authed: false, user: "" });
+  const [runtime, setRuntime] = useState<Runtime>({ environment: "production", release: "" });
 
   useEffect(() => {
     api.me().then((r) => setAuth({
       loading: false, authed: r.authenticated, user: r.username || "", invite: r.invite_code,
     }));
+    api.health().then((r) => setRuntime({ environment: r.environment, release: r.release })).catch(() => {});
   }, []);
 
   if (auth.loading) return <div className="auth-wrap"><span className="loading">initializing</span></div>;
 
+  const isDev = runtime.environment === "development";
+
   if (!auth.authed)
-    return <Login onAuthed={(user) => setAuth({ loading: false, authed: true, user })} />;
+    return (
+      <div className={isDev ? "environment-dev" : ""}>
+        {isDev && <DevBanner release={runtime.release} />}
+        <Login onAuthed={(user) => setAuth({ loading: false, authed: true, user })} />
+      </div>
+    );
 
   return (
-    <div className="shell">
-      <Rail user={auth.user} invite={auth.invite}
-            onLogout={() => setAuth({ loading: false, authed: false, user: "" })} />
-      <div className="main">
-        <Routes>
-          <Route path="/" element={<Today />} />
-          <Route path="/plan" element={<FlightPlan />} />
-          <Route path="/topics" element={<Topics />} />
-          <Route path="/topics/:id" element={<TopicDetail />} />
-          <Route path="/mock" element={<Mock />} />
-          <Route path="/problems" element={<Problems />} />
-          <Route path="/problems/:id/solve" element={
-            <Suspense fallback={<div className="loading">loading editor</div>}><Solve /></Suspense>
-          } />
-          <Route path="/ask" element={<Ask />} />
-          <Route path="/progress" element={<Progress />} />
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+    <div className={isDev ? "environment-dev" : ""}>
+      {isDev && <DevBanner release={runtime.release} />}
+      <div className="shell">
+        <Rail user={auth.user} invite={auth.invite} runtime={runtime}
+              onLogout={() => setAuth({ loading: false, authed: false, user: "" })} />
+        <div className="main">
+          <Routes>
+            <Route path="/" element={<Today />} />
+            <Route path="/plan" element={<FlightPlan />} />
+            <Route path="/topics" element={<Topics />} />
+            <Route path="/topics/:id" element={<TopicDetail />} />
+            <Route path="/mock" element={<Mock />} />
+            <Route path="/problems" element={<Problems />} />
+            <Route path="/problems/:id/solve" element={
+              <Suspense fallback={<div className="loading">loading editor</div>}><Solve /></Suspense>
+            } />
+            <Route path="/ask" element={<Ask />} />
+            <Route path="/progress" element={<Progress />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </div>
       </div>
     </div>
   );
 }
 
-function Rail({ user, invite, onLogout }: { user: string; invite?: string; onLogout: () => void }) {
+function DevBanner({ release }: { release: string }) {
+  return <div className="dev-banner">Development preview · {release || "local"} · isolated test data</div>;
+}
+
+function Rail({ user, invite, runtime, onLogout }: {
+  user: string; invite?: string; runtime: Runtime; onLogout: () => void;
+}) {
   const nav = useNavigate();
   const [brain, setBrain] = useState<{ online: boolean; model: string }>({ online: false, model: "" });
   const [streak, setStreak] = useState<number>(0);
@@ -84,7 +103,7 @@ function Rail({ user, invite, onLogout }: { user: string; invite?: string; onLog
     <nav className="rail">
       <div className="brand">
         <span className="logo">Prep<b>Pilot</b></span>
-        <span className="tag">v0.1</span>
+        <span className="tag">{runtime.environment === "development" ? "DEV" : runtime.release || "v0.1"}</span>
       </div>
       {links.map((l) => (
         <NavLink key={l.to} to={l.to} end={l.to === "/"} className={({ isActive }) => "navlink" + (isActive ? " active" : "")}>

@@ -33,7 +33,10 @@ async def lifespan(app: FastAPI):
         added = seed_database(session)
         p_added, p_updated = seed_problems(session)
         log.info("seeded %d new concepts; problems +%d new, %d updated", added, p_added, p_updated)
-    _scheduler = start_scheduler()
+    if settings.scheduler_enabled:
+        _scheduler = start_scheduler()
+    else:
+        log.info("background scheduler disabled for %s", settings.environment)
     yield
     if _scheduler:
         _scheduler.shutdown(wait=False)
@@ -90,7 +93,12 @@ def setup(body: SetupIn, response: Response):
 
 @app.get("/api/health")
 def health():
-    return {"ok": True}
+    return {
+        "ok": True,
+        "environment": settings.environment,
+        "release": settings.release,
+        "scheduler_enabled": settings.scheduler_enabled,
+    }
 
 
 # ---- Serve the built React app (SPA fallback) ----

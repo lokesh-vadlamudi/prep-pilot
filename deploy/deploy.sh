@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Deploy PrepPilot to the Mac mini.
-# Idempotent: safe to re-run for updates. Run from the project root on the MacBook.
+# Deploy a tagged PrepPilot release to production on the Mac mini.
+# Idempotent: safe to re-run for the same tag. Run from the project root on the MacBook.
 # The deploy target lives in deploy/deploy.env (untracked): MINI="user@host"
 set -euo pipefail
 
@@ -12,8 +12,22 @@ APP_PORT=8778
 SERVE_PORT=10000
 REMOTE_DIR="prep-pilot"           # relative to remote $HOME
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
+RELEASE_TAG="${RELEASE_TAG:-$(git -C "$HERE" describe --tags --exact-match HEAD 2>/dev/null || true)}"
 
-echo "==> 1/6  Building frontend locally"
+if ! [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "Production deploy blocked: check out an exact vMAJOR.MINOR.PATCH tag or use deploy/release.sh." >&2
+  exit 1
+fi
+if ! git -C "$HERE" diff --quiet || ! git -C "$HERE" diff --cached --quiet; then
+  echo "Production deploy blocked: tracked files must be clean." >&2
+  exit 1
+fi
+if [ "$(git -C "$HERE" rev-parse HEAD)" != "$(git -C "$HERE" rev-list -n 1 "$RELEASE_TAG")" ]; then
+  echo "Production deploy blocked: $RELEASE_TAG does not point to HEAD." >&2
+  exit 1
+fi
+
+echo "==> 1/6  Building production release $RELEASE_TAG"
 ( cd "$HERE/frontend" && npm install --silent && npm run build )
 
 echo "==> 2/6  Syncing project to mini (~/$REMOTE_DIR)"
@@ -33,14 +47,22 @@ ssh "$MINI" "cd ~/$REMOTE_DIR/backend && ~/.local/bin/uv sync"
 
 echo "==> 5/6  Installing LaunchAgent (auto-start + keep-alive)"
 HOME_REMOTE=$(ssh "$MINI" 'echo $HOME')
-sed "s#__UV__#$HOME_REMOTE/.local/bin/uv#g; s#__HOME__#$HOME_REMOTE#g" \
+sed "s#__UV__#$HOME_REMOTE/.local/bin/uv#g; s#__HOME__#$HOME_REMOTE#g; s#__RELEASE__#$RELEASE_TAG#g" \
   "$HERE/deploy/com.preppilot.server.plist" | \
   ssh "$MINI" "cat > ~/Library/LaunchAgents/com.preppilot.server.plist"
 ssh "$MINI" '
   launchctl unload ~/Library/LaunchAgents/com.preppilot.server.plist 2>/dev/null || true
   launchctl load  ~/Library/LaunchAgents/com.preppilot.server.plist
   sleep 4
-  curl -sf http://127.0.0.1:'"$APP_PORT"'/api/health && echo " <- app healthy" || echo "app not healthy yet (check ~/Library/Logs/preppilot.log)"
+  HEALTH=$(curl -sf http://127.0.0.1:'"$APP_PORT"'/api/health) || {
+    echo "production not healthy (check ~/Library/Logs/preppilot.log)" >&2
+    exit 1
+  }
+  printf "%s" "$HEALTH" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get(\"environment\") == \"production\" and d.get(\"scheduler_enabled\") is True" || {
+    echo "production environment check failed: $HEALTH" >&2
+    exit 1
+  }
+  echo "$HEALTH <- production healthy"
 '
 
 echo "==> 6/6  Exposing over Tailscale HTTPS on :$SERVE_PORT (leaves OpenClaw on 443 untouched)"
@@ -50,4 +72,4 @@ ssh "$MINI" "$TS serve status"
 DOMAIN=$(ssh "$MINI" "$TS status --json" | python3 -c "import sys,json;print(json.load(sys.stdin)['Self']['DNSName'].rstrip('.'))")
 echo
 echo "==> Done. Open:  https://$DOMAIN:$SERVE_PORT"
-echo "    First visit will prompt you to set your passcode."
+echo "    Production release: $RELEASE_TAG"
