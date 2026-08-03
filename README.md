@@ -6,9 +6,10 @@
 ![LLM](https://img.shields.io/badge/LLM-local%20ollama-FFA94D)
 ![Self-hosted](https://img.shields.io/badge/self--hosted-Tailscale-555)
 
-A daily senior-SWE interview trainer with spaced repetition, an AI tutor, and a
-self-growing curriculum. Built to run on the **Mac mini** and use the **DGX**
-(`qwen3.6:35b`) as its reasoning brain over Tailscale.
+An adaptive interview-prep cockpit that turns daily learning evidence into an
+explainable **Learn Next** plan. It combines spaced repetition, NeetCode 150,
+mock interviews, a structured roadmap, and a local **DGX** tutor
+(`qwen3.6:35b`) in one self-hosted workflow.
 
 <p align="center">
   <img src="docs/preflight.jpg" alt="Daily pre-flight dashboard" width="49%">
@@ -16,15 +17,17 @@ self-growing curriculum. Built to run on the **Mac mini** and use the **DGX**
 </p>
 
 ## What it does
-- **Daily "pre-flight"** — due spaced-repetition reviews + a few new topics each day, with a streak.
+- **Daily pre-flight** — one prioritized session combining due reviews, new concepts, and coding practice.
 - **Adaptive "Learn Next"** — adjusts new-topic load from recent recall and due reviews, explains the choice, and previews what comes next.
 - **SM-2 spaced repetition** — everything you learn is scheduled for review so it sticks.
 - **DGX diagnosis** — on demand, the local model interprets recent mistakes, names a teaching focus, and asks a targeted retrieval question without controlling the scheduler.
-- **Two graders** — MCQs graded instantly; free-text / whiteboard answers graded by the DGX brain with senior-level feedback.
+- **Interview practice** — NeetCode 150 tracking, progressive hints, executable solutions, and coding/system-design/behavioral mocks.
+- **Level-aware coaching** — separate new-grad and senior curricula, examples, and grading expectations.
+- **Two graders** — MCQs graded instantly; free-text and whiteboard answers graded by the DGX brain.
 - **Self-updating** — a nightly job authors fresh, stack-relevant concepts (Go / Python / TS / React / cloud / Terraform). Also on demand from the Syllabus page.
 - **Ask the tutor** — free-form Q&A and system-design coaching.
 - **Flight log** — accuracy, per-track mastery, 14-day activity.
-- **Login** — single-user cookie auth (required; the mini's tailnet is shared).
+- **Multi-user accounts** — invite-code registration with isolated progress, settings, reviews, and problem status.
 
 ## Architecture
 ```
