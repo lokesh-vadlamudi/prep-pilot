@@ -12,7 +12,7 @@ from .config import settings, BASE_DIR
 from .db import engine
 from .models import User
 
-COOKIE = "prep_session"
+COOKIE = settings.cookie_name
 MAX_AGE = 60 * 60 * 24 * 30  # 30 days
 
 

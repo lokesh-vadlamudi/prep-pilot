@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.preppilot.server</string>
+  <string>com.preppilot.dev</string>
 
   <key>ProgramArguments</key>
   <array>
@@ -14,24 +14,24 @@
     <string>--host</string>
     <string>127.0.0.1</string>
     <string>--port</string>
-    <string>8778</string>
+    <string>8779</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>__HOME__/prep-pilot/backend</string>
+  <string>__HOME__/prep-pilot-dev/backend</string>
 
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
     <string>__HOME__/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>ENVIRONMENT</key>
-    <string>production</string>
+    <string>development</string>
     <key>RELEASE</key>
     <string>__RELEASE__</string>
     <key>COOKIE_NAME</key>
-    <string>prep_session</string>
+    <string>prep_session_dev</string>
     <key>SCHEDULER_ENABLED</key>
-    <string>true</string>
+    <string>false</string>
   </dict>
 
   <key>RunAtLoad</key>
@@ -40,8 +40,8 @@
   <true/>
 
   <key>StandardOutPath</key>
-  <string>__HOME__/Library/Logs/preppilot.log</string>
+  <string>__HOME__/Library/Logs/preppilot-dev.log</string>
   <key>StandardErrorPath</key>
-  <string>__HOME__/Library/Logs/preppilot.log</string>
+  <string>__HOME__/Library/Logs/preppilot-dev.log</string>
 </dict>
 </plist>

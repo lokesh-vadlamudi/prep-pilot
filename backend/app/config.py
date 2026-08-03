@@ -31,6 +31,12 @@ class Settings(BaseSettings):
     # --- Storage ---
     database_url: str = f"sqlite:///{DATA_DIR / 'prep.db'}"
 
+    # --- Runtime environment ---
+    environment: str = "production"      # production | development
+    release: str = "local"               # git tag or short commit shown in the UI
+    cookie_name: str = "prep_session"     # dev must differ: cookies ignore ports
+    scheduler_enabled: bool = True         # disabled in dev to avoid duplicate jobs
+
     # --- Learning ---
     new_topics_per_day: int = 3          # fresh concepts introduced daily
     max_reviews_per_day: int = 25        # cap on due reviews shown per day
