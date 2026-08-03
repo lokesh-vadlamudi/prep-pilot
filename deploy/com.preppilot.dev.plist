@@ -31,7 +31,7 @@
     <key>COOKIE_NAME</key>
     <string>prep_session_dev</string>
     <key>SCHEDULER_ENABLED</key>
-    <false/>
+    <string>false</string>
   </dict>
 
   <key>RunAtLoad</key>
