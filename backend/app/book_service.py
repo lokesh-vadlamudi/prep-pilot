@@ -188,6 +188,8 @@ async def process_next_book() -> int:
 
 
 def activate(session: Session, book: Book) -> int:
+    if book.status not in ("ready", "partial"):
+        raise HTTPException(409, "Book has no generated material ready")
     concepts = session.exec(select(Concept).where(Concept.book_id == book.id, Concept.owner_user_id == book.user_id)).all()
     added = 0
     for concept in concepts:

@@ -132,6 +132,41 @@ class GeneratedCardValidationTests(unittest.TestCase):
         self.assertEqual(book_service._valid_cards([{"kind": "free", "prompt": "Explain", "answer": "Because"}]), [])
 
 
+class ActivationTests(unittest.TestCase):
+    def test_direct_activation_rejects_books_without_generated_material(self):
+        for status in ("queued", "extracting", "processing"):
+            with self.subTest(status=status), memory_session() as session:
+                alice = user(session, "alice")
+                book = Book(user_id=alice.id, title="Systems", original_filename="s.pdf", storage_path="x",
+                            sha256=f"sha-{status}", status=status)
+                session.add(book); session.commit(); session.refresh(book)
+
+                with self.assertRaises(HTTPException) as caught:
+                    book_service.activate(session, book)
+
+                self.assertEqual(caught.exception.status_code, 409)
+                self.assertFalse(session.get(Book, book.id).activated)
+                self.assertEqual(session.exec(select(Card).where(Card.user_id == alice.id)).all(), [])
+
+    def test_direct_activation_is_idempotent_for_ready_and_partial_books(self):
+        for status in ("ready", "partial"):
+            with self.subTest(status=status), memory_session() as session:
+                alice = user(session, "alice")
+                book = Book(user_id=alice.id, title="Systems", original_filename="s.pdf", storage_path="x",
+                            sha256=f"sha-{status}", status=status)
+                session.add(book); session.commit(); session.refresh(book)
+                concept = Concept(slug=f"book-{status}", track="Systems", title="Queues", source="book",
+                                  owner_user_id=alice.id, book_id=book.id)
+                session.add(concept); session.commit(); session.refresh(concept)
+                session.add(Card(concept_id=concept.id, kind="free", prompt="Explain", answer="Answer", source="book"))
+                session.commit()
+
+                self.assertEqual(book_service.activate(session, book), 1)
+                self.assertEqual(book_service.activate(session, book), 0)
+                self.assertTrue(session.get(Book, book.id).activated)
+                self.assertEqual(len(session.exec(select(Card).where(Card.user_id == alice.id)).all()), 1)
+
+
 class PersistentWorkerTests(unittest.IsolatedAsyncioTestCase):
     async def test_generation_is_checkpointed_and_activation_is_owner_only(self):
         engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
