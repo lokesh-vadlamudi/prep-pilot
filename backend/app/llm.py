@@ -1,8 +1,4 @@
-"""Client for the DGX ollama brain (qwen3.6:35b).
-
-Thinking is disabled (`think=False`) — this model routes tokens to hidden
-reasoning otherwise and returns empty content for short completions.
-"""
+"""Client for the DGX vLLM OpenAI-compatible API (qwen3.6:35b)."""
 from __future__ import annotations
 
 import json
@@ -28,17 +24,26 @@ async def chat(
         "model": settings.model,
         "messages": messages,
         "stream": False,
-        "think": False,
-        "options": {"temperature": temperature, "num_predict": num_predict},
+        "temperature": temperature,
+        "max_tokens": num_predict,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     try:
         async with httpx.AsyncClient(timeout=settings.llm_timeout) as client:
-            r = await client.post(f"{settings.ollama_url}/api/chat", json=payload)
+            r = await client.post(
+                f"{settings.llm_base_url.rstrip('/')}/chat/completions", json=payload
+            )
             r.raise_for_status()
             data = r.json()
     except httpx.HTTPError as e:
         raise LLMError(f"DGX model unreachable: {e}") from e
-    return (data.get("message", {}) or {}).get("content", "").strip()
+    choices = data.get("choices") or []
+    if not choices:
+        raise LLMError("DGX model returned no completion choices")
+    content = (choices[0].get("message", {}) or {}).get("content")
+    if not content:
+        raise LLMError("DGX model returned an empty completion")
+    return content.strip()
 
 
 def _extract_json(text: str) -> Any:
@@ -95,7 +100,7 @@ async def chat_json(
 async def health() -> bool:
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(f"{settings.ollama_url}/api/tags")
+            r = await client.get(f"{settings.llm_base_url.rstrip('/')}/models")
             return r.status_code == 200
     except httpx.HTTPError:
         return False
