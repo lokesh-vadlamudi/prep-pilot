@@ -99,3 +99,18 @@ def chat_history(book_id: int, user: User = RequireUser, session: Session = Depe
     book_service.owned_book(session, user.id, book_id)
     rows = session.exec(select(BookChatMessage).where(BookChatMessage.book_id == book_id, BookChatMessage.user_id == user.id).order_by(BookChatMessage.created_at)).all()
     return [{"role": r.role, "content": r.content, "citations": json.loads(r.citations_json)} for r in rows[-30:]]
+
+
+@router.delete("/{book_id}/chat")
+def clear_chat(book_id: int, user: User = RequireUser, session: Session = Depends(get_session)):
+    book_service.owned_book(session, user.id, book_id)
+    deleted = session.exec(
+        select(BookChatMessage).where(
+            BookChatMessage.book_id == book_id,
+            BookChatMessage.user_id == user.id,
+        )
+    ).all()
+    for row in deleted:
+        session.delete(row)
+    session.commit()
+    return {"deleted": len(deleted)}

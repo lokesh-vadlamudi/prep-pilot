@@ -101,6 +101,7 @@ export const api = {
   bookChat: (id: number, question: string, scope = "book", section_id?: number) =>
     req(`/api/books/${id}/chat`, { method: "POST", headers: json, body: JSON.stringify({ question, scope, section_id }) }),
   bookChatHistory: (id: number) => req(`/api/books/${id}/chat`),
+  clearBookChat: (id: number) => req(`/api/books/${id}/chat`, { method: "DELETE" }),
   card: (id: number) => req(`/api/card/${id}`),
   submit: (body: { card_id: number; user_answer?: string; self_grade?: number }): Promise<SubmitResult> =>
     req("/api/submit", { method: "POST", headers: json, body: JSON.stringify(body) }),

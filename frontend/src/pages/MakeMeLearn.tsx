@@ -11,6 +11,7 @@ export default function MakeMeLearn() {
   const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const [messages, setMessages] = useState<Message[]>([]); const [question, setQuestion] = useState("");
   const [scope, setScope] = useState("book"); const [sectionId, setSectionId] = useState<number | undefined>();
+  const [clearing, setClearing] = useState(false); const [confirmingClear, setConfirmingClear] = useState(false);
 
   async function refresh(selectId?: number) {
     const list = await api.books(); setBooks(list);
@@ -36,6 +37,16 @@ export default function MakeMeLearn() {
     catch { setMessages((m) => [...m, { role: "assistant", content: "DGX could not answer from the available book excerpts." }]); }
   }
 
+  async function clearChat() {
+    if (!active) return; setClearing(true); setConfirmingClear(false);
+    try {
+      await api.clearBookChat(active.id);
+      setMessages([]);
+    } catch {
+      setError("Could not clear chat. Please try again.");
+    } finally { setClearing(false); }
+  }
+
   return <div className="book-workspace">
     <main className="book-main">
       <header className="page-head book-page-head"><div><span className="eyebrow">PRIVATE LEARNING LAB</span><h1>Make Me Learn</h1><p>Turn a book you own into guided topics, quizzes, and source-backed tutoring.</p></div>
@@ -54,7 +65,19 @@ export default function MakeMeLearn() {
         <section className="panel"><h2>Chapter journey</h2><div className="topic-path">{active.sections?.map((s) => <div className={`topic-node ${s.status}`} key={s.id} onClick={() => setSectionId(s.id)}><div><strong>{s.topic_title || s.label}</strong>{s.summary && <p>{s.summary}</p>}<small>{s.citation}</small></div><span>{s.status}</span>{s.concept_id && <Link to={`/topics/${s.concept_id}`}>{active.activated ? "Learn / quiz →" : "Preview →"}</Link>}</div>)}</div></section>
       </>}
     </main>
-    <aside className="book-chat"><div><span className="eyebrow">DGX · GROUNDED</span><h2>Ask This Book</h2></div>
+    <aside className="book-chat"><div><span className="eyebrow">DGX · GROUNDED</span><h2>Ask This Book</h2>
+        {confirmingClear ? (
+          <div className="clear-confirm">
+            <span>Clear all messages for <em>{active.title}</em>?</span>
+            <div className="clear-confirm-actions">
+              <button className="btn" onClick={clearChat} disabled={clearing || busy} title="Clear chat">Clear</button>
+              <button className="btn" onClick={() => setConfirmingClear(false)} disabled={clearing || busy}>Cancel</button>
+            </div>
+          </div>
+        ) : messages.length > 0 ? (
+          <button className="btn clear-chat-btn" onClick={() => setConfirmingClear(true)} disabled={busy || clearing} title="Clear chat">Clear chat</button>
+        ) : null}
+      </div>
       {!active ? <p className="muted">Import or select a book to begin.</p> : <>
         <select value={scope} onChange={(e) => setScope(e.target.value)}><option value="book">Whole book</option><option value="chapter">Selected chapter</option><option value="topic">Selected topic</option></select>
         <div className="chat-scroll">{messages.map((m, i) => <div className={`chat-msg ${m.role}`} key={i}><strong>{m.role === "user" ? "You" : "DGX"}</strong><p>{m.content}</p>{m.citations?.map((c, j) => <small key={j}>{c.citation}</small>)}</div>)}</div>

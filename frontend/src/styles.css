@@ -882,6 +882,11 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .chat-prompts button { font-size: 10px; border: 1px solid var(--hairline-soft); border-radius: 14px; padding: 5px 8px; background: var(--paper); }
 .chat-input { display: grid; gap: 7px; }
 .chat-input textarea { min-height: 72px; resize: vertical; }
+.book-chat div > h2 + .clear-chat-btn, .book-chat div > h2 ~ .clear-chat-btn { align-self: flex-end; font-size: 11px; padding: 4px 10px; }
+.book-chat div > h2 ~ .clear-chat-btn:hover:not(:disabled) { background: #fee; border-color: var(--warn); color: var(--warn); }
+.clear-confirm { background: #fff8e1; border: 1px solid #ffe082; border-radius: 7px; padding: 10px 12px; font-size: 13px; }
+.clear-confirm-actions { display: flex; gap: 6px; margin-top: 8px; }
+.clear-confirm-actions .btn { font-size: 11px; padding: 4px 12px; }
 @media (max-width: 900px) { .book-workspace { display: block; } .book-main { padding: 20px; } .book-chat { position: static; height: auto; min-height: 420px; border-left: 0; border-top: 1px solid var(--hairline-soft); } }
 @media (max-width: 560px) { .book-page-head { flex-direction: column; align-items: flex-start; } }
 

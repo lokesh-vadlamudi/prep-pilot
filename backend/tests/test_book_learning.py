@@ -18,6 +18,7 @@ from app.config import settings
 from app.models import Book, Card, Concept, IngestionSection, User
 from app.routers.study_routes import topic
 from app.routers.book_routes import retry_book
+from app.routers.book_routes import clear_chat
 
 
 def memory_session() -> Session:
@@ -287,6 +288,59 @@ class SchedulerAndCsrfTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Secure", deleted); self.assertIn("Path=/", deleted)
         finally:
             settings.environment, settings.secret_key = old_environment, old_secret
+
+
+class ClearChatTests(unittest.TestCase):
+    def test_user_can_clear_own_chat_messages(self):
+        with memory_session() as session:
+            alice = user(session, "alice")
+            book = Book(user_id=alice.id, title="Networks", original_filename="n.pdf", storage_path="x", sha256="abc")
+            session.add(book); session.commit(); session.refresh(book)
+            session.add(Card(concept_id=0, prompt="Q", answer="A"))
+            session.add(IngestionSection(book_id=book.id, ordinal=0, chapter="C", label="L", page_start=1, page_end=1, citation="p1", extracted_text="x", content_hash="h"))
+            from app.models import BookChatMessage
+            session.add(BookChatMessage(book_id=book.id, user_id=alice.id, role="user", content="Q1"))
+            session.add(BookChatMessage(book_id=book.id, user_id=alice.id, role="assistant", content="A1"))
+            session.commit()
+            result = clear_chat(book.id, alice, session)
+            self.assertEqual(result["deleted"], 2)
+            from sqlmodel import select
+            remaining = session.exec(select(BookChatMessage)).all()
+            self.assertEqual(len(remaining), 0)
+
+    def test_clear_only_deletes_authenticated_users_messages(self):
+        with memory_session() as session:
+            alice, bob = user(session, "alice"), user(session, "bob")
+            alice_book = Book(user_id=alice.id, title="Alice Book", original_filename="a.pdf", storage_path="x", sha256="ab1")
+            bob_book = Book(user_id=bob.id, title="Bob Book", original_filename="b.pdf", storage_path="y", sha256="ab2")
+            session.add(alice_book); session.add(bob_book); session.commit()
+            from app.models import BookChatMessage
+            session.add(BookChatMessage(book_id=alice_book.id, user_id=alice.id, role="user", content="alice msg"))
+            session.add(BookChatMessage(book_id=bob_book.id, user_id=bob.id, role="user", content="bob msg"))
+            session.commit()
+            result = clear_chat(alice_book.id, alice, session)
+            self.assertEqual(result["deleted"], 1)
+            alice_msgs = session.exec(select(BookChatMessage).where(BookChatMessage.book_id == alice_book.id)).all()
+            self.assertEqual(len(alice_msgs), 0)
+            bob_msgs = session.exec(select(BookChatMessage).where(BookChatMessage.book_id == bob_book.id)).all()
+            self.assertEqual(len(bob_msgs), 1)
+            self.assertEqual(bob_msgs[0].content, "bob msg")
+
+    def test_clear_on_empty_chat_returns_zero(self):
+        with memory_session() as session:
+            alice = user(session, "alice")
+            book = Book(user_id=alice.id, title="Empty", original_filename="e.pdf", storage_path="x", sha256="empty")
+            session.add(book); session.commit(); session.refresh(book)
+            result = clear_chat(book.id, alice, session)
+            self.assertEqual(result["deleted"], 0)
+
+    def test_clear_cross_origin_is_rejected(self):
+        scope = {"type": "http", "method": "DELETE", "scheme": "https", "server": ("prep.local", 443),
+                 "path": "/api/books/1/chat", "root_path": "", "query_string": b"",
+                 "headers": [(b"host", b"prep.local"), (b"origin", b"https://evil.example"), (b"sec-fetch-site", b"cross-site")]}
+        with self.assertRaises(HTTPException) as caught:
+            auth.require_same_origin(Request(scope))
+        self.assertEqual(caught.exception.status_code, 403)
 
 
 if __name__ == "__main__":
