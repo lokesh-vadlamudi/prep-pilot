@@ -14,7 +14,6 @@ export default function MakeMeLearn() {
   const [clearing, setClearing] = useState(false); const [confirmingClear, setConfirmingClear] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
-  const cancelBtnRef = useRef<HTMLButtonElement>(null);
   const [focusTextarea, setFocusTextarea] = useState(false);
 
   async function refresh(selectId?: number) {
@@ -31,8 +30,8 @@ export default function MakeMeLearn() {
   useEffect(() => {
     if (confirmingClear) {
       confirmBtnRef.current?.focus();
-    } else if (cancelBtnRef.current) {
-      cancelBtnRef.current.focus();
+    } else {
+      triggerRef.current?.focus();
     }
   }, [confirmingClear]);
 
@@ -95,7 +94,7 @@ export default function MakeMeLearn() {
               <span>Clear all messages for <em>{active.title}</em>?</span>
               <div className="clear-confirm-actions">
                 <button className="btn" ref={confirmBtnRef} onClick={clearChat} disabled={clearing || busy} title="Clear chat">Clear</button>
-                <button className="btn" ref={cancelBtnRef} onClick={() => setConfirmingClear(false)} disabled={clearing || busy}>Cancel</button>
+                <button className="btn" onClick={() => setConfirmingClear(false)} disabled={clearing || busy}>Cancel</button>
               </div>
             </div>
           ) : null
