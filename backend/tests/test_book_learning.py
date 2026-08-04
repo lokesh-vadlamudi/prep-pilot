@@ -343,5 +343,76 @@ class ClearChatTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 403)
 
 
+class ClearChatHTTPTests(unittest.TestCase):
+    """Auth-integrated HTTP tests for DELETE /api/books/{id}/chat."""
+
+    def _make_app(self, test_user: User, session: Session):
+        """Build a test FastAPI app with book routes, overridden auth/db."""
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from app.routers import book_routes as br
+
+        app = FastAPI()
+        app.include_router(br.router)
+
+        client = TestClient(app)
+
+        # Override auth: return the test user for every request
+        def _override_current_user():
+            return test_user
+
+        # Override DB: yield the test session
+        def _override_session():
+            yield session
+
+        # Override same-origin check (test client has no origin header)
+        def _override_same_origin(_request: Request):
+            return None
+
+        client.app.dependency_overrides = {
+            auth.current_user: _override_current_user,
+            br.get_session: _override_session,
+            auth.require_same_origin: _override_same_origin,
+        }
+        return client
+
+    def test_owner_success_returns_deleted_count(self):
+        with memory_session() as session:
+            alice = user(session, "http_alice")
+            book = Book(user_id=alice.id, title="HTTP Test", original_filename="t.pdf", storage_path="x", sha256="ht")
+            session.add(book); session.commit(); session.refresh(book)
+            from app.models import BookChatMessage
+            session.add(BookChatMessage(book_id=book.id, user_id=alice.id, role="user", content="q1"))
+            session.add(BookChatMessage(book_id=book.id, user_id=alice.id, role="assistant", content="a1"))
+            session.commit()
+
+            client = self._make_app(alice, session)
+            resp = client.delete(f"/api/books/{book.id}/chat")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            self.assertEqual(data["deleted"], 2)
+
+    def test_cross_user_returns_404(self):
+        with memory_session() as session:
+            alice = user(session, "http_bob")
+            bob = user(session, "http_charlie")
+            book = Book(user_id=alice.id, title="Owned", original_filename="o.pdf", storage_path="x", sha256="ow")
+            session.add(book); session.commit(); session.refresh(book)
+            from app.models import BookChatMessage
+            session.add(BookChatMessage(book_id=book.id, user_id=alice.id, role="user", content="mine"))
+            session.commit()
+
+            client = self._make_app(bob, session)
+            resp = client.delete(f"/api/books/{book.id}/chat")
+            self.assertEqual(resp.status_code, 404)
+
+    def test_nonexistent_book_returns_404(self):
+        with memory_session() as session:
+            alice = user(session, "http_dave")
+            client = self._make_app(alice, session)
+            resp = client.delete("/api/books/99999/chat")
+            self.assertEqual(resp.status_code, 404)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -67,13 +67,15 @@ export default function MakeMeLearn() {
     </main>
     <aside className="book-chat"><div><span className="eyebrow">DGX · GROUNDED</span><h2>Ask This Book</h2>
         {confirmingClear ? (
-          <div className="clear-confirm">
-            <span>Clear all messages for <em>{active.title}</em>?</span>
-            <div className="clear-confirm-actions">
-              <button className="btn" onClick={clearChat} disabled={clearing || busy} title="Clear chat">Clear</button>
-              <button className="btn" onClick={() => setConfirmingClear(false)} disabled={clearing || busy}>Cancel</button>
+          active ? (
+            <div className="clear-confirm">
+              <span>Clear all messages for <em>{active.title}</em>?</span>
+              <div className="clear-confirm-actions">
+                <button className="btn" onClick={clearChat} disabled={clearing || busy} title="Clear chat">Clear</button>
+                <button className="btn" onClick={() => setConfirmingClear(false)} disabled={clearing || busy}>Cancel</button>
+              </div>
             </div>
-          </div>
+          ) : null
         ) : messages.length > 0 ? (
           <button className="btn clear-chat-btn" onClick={() => setConfirmingClear(true)} disabled={busy || clearing} title="Clear chat">Clear chat</button>
         ) : null}
