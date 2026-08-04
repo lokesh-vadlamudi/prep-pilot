@@ -55,15 +55,12 @@ export default function MakeMeLearn() {
       {error && <div className="notice error">{error}</div>}
       {!books.length && <section className="panel book-empty"><h2>Your private library is empty</h2><p>Choose a digitally readable PDF. Processing stays on the Mac mini and private DGX; OCR is not included yet.</p><p className="muted">Maximum 50 MB and 500 pages. Only upload material you have rights to process.</p></section>}
       {!!books.length && <div className="book-picker">{books.map((b) => <button className={active?.id === b.id ? "active" : ""} key={b.id} onClick={() => refresh(b.id)}>{b.title}<small>{b.status}</small></button>)}</div>}
-      {active && <>
-        <section className="panel book-overview"><div><span className="eyebrow">{active.status}</span><h2>{active.title}</h2><p>{active.page_count} pages · {active.completed_sections}/{active.total_sections} topics generated</p></div>
-          <progress max={Math.max(active.total_sections, 1)} value={active.completed_sections} />
-          {!active.activated && ["ready", "partial"].includes(active.status) && <button className="btn primary" onClick={async () => { await api.activateBook(active.id); await refresh(active.id); }}>Activate course</button>}
-          {active.status === "partial" && <button className="btn" onClick={async () => { await api.retryBook(active.id); await refresh(active.id); }}>Retry failed topics</button>}
-        </section>
-        {active.activated && <section className="panel continue-card"><span className="eyebrow">RECOMMENDED</span><h2>Continue learning</h2><p>Learn a grounded topic, recall it without notes, then test your understanding.</p><Link className="btn primary" to={active.sections?.find(s => s.concept_id)?.concept_id ? `/topics/${active.sections.find(s => s.concept_id)!.concept_id}` : "/"}>Start a learning session</Link><div className="session-modes"><span>Quick · 5 min</span><span>Learn · 10–15 min</span><span>Deep · 20–30 min</span></div></section>}
-        <section className="panel"><h2>Chapter journey</h2><div className="topic-path">{active.sections?.map((s) => <div className={`topic-node ${s.status}`} key={s.id} onClick={() => setSectionId(s.id)}><div><strong>{s.topic_title || s.label}</strong>{s.summary && <p>{s.summary}</p>}<small>{s.citation}</small></div><span>{s.status}</span>{s.concept_id && <Link to={`/topics/${s.concept_id}`}>{active.activated ? "Learn / quiz →" : "Preview →"}</Link>}</div>)}</div></section>
-      </>}
+      {active && <section className="panel book-overview"><div><span className="eyebrow">{active.status}</span><h2>{active.title}</h2><p>{active.page_count} pages · {active.completed_sections}/{active.total_sections} topics generated</p></div>
+        <progress max={Math.max(active.total_sections, 1)} value={active.completed_sections} />
+        {!active.activated && ["ready", "partial"].includes(active.status) && <button className="btn primary" onClick={async () => { await api.activateBook(active.id); await refresh(active.id); }}>Activate course</button>}
+        {active.status === "partial" && <button className="btn" onClick={async () => { await api.retryBook(active.id); await refresh(active.id); }}>Retry failed topics</button>}
+      </section>}
+      {active && active.activated && <section className="panel continue-card"><span className="eyebrow">RECOMMENDED</span><h2>Continue learning</h2><p>Learn a grounded topic, recall it without notes, then test your understanding.</p><Link className="btn primary" to={active.sections?.find(s => s.concept_id)?.concept_id ? `/topics/${active.sections.find(s => s.concept_id)!.concept_id}` : "/"}>Start a learning session</Link><div className="session-modes"><span>Quick · 5 min</span><span>Learn · 10–15 min</span><span>Deep · 20–30 min</span></div></section>}
     </main>
     <aside className="book-chat"><div><span className="eyebrow">DGX · GROUNDED</span><h2>Ask This Book</h2>
         {confirmingClear ? (
@@ -87,5 +84,6 @@ export default function MakeMeLearn() {
         <div className="chat-input"><textarea value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask a question grounded in this book…"/><button className="btn primary" onClick={ask}>Ask</button></div>
       </>}
     </aside>
+    {active && <section className="panel"><h2>Chapter journey</h2><div className="topic-path">{active.sections?.map((s) => <div className={`topic-node ${s.status}`} key={s.id} onClick={() => setSectionId(s.id)}><div><strong>{s.topic_title || s.label}</strong>{s.summary && <p>{s.summary}</p>}<small>{s.citation}</small></div><span>{s.status}</span>{s.concept_id && <Link to={`/topics/${s.concept_id}`}>{active.activated ? "Learn / quiz →" : "Preview →"}</Link>}</div>)}</div></section>}
   </div>;
 }
