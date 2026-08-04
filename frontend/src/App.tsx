@@ -10,6 +10,7 @@ import Mock from "./pages/Mock";
 import Ask from "./pages/Ask";
 import Progress from "./pages/Progress";
 import FlightPlan from "./pages/FlightPlan";
+import MakeMeLearn from "./pages/MakeMeLearn";
 
 // Heavy (CodeMirror) — only loaded when opening a problem to solve.
 const Solve = lazy(() => import("./pages/Solve"));
@@ -59,6 +60,7 @@ export default function App() {
             } />
             <Route path="/ask" element={<Ask />} />
             <Route path="/progress" element={<Progress />} />
+            <Route path="/make-me-learn" element={<MakeMeLearn />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
@@ -91,6 +93,7 @@ function Rail({ user, invite, runtime, onLogout }: {
     { to: "/topics", label: "Syllabus", hint: "topics" },
     { to: "/ask", label: "Ask the tutor", hint: "q&a" },
     { to: "/progress", label: "Flight log", hint: "progress" },
+    { to: "/make-me-learn", label: "Make me learn", hint: "books" },
   ];
 
   async function logout() {

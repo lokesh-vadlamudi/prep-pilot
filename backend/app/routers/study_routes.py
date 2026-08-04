@@ -87,15 +87,12 @@ def progress(user: User = RequireUser, session: Session = Depends(get_session)):
     return service.progress_stats(session, user.id)
 
 
-@router.get("/books")
-def books(user: User = RequireUser, session: Session = Depends(get_session)):
-    return service.book_progress(session, user.id)
-
-
 @router.get("/topics")
 def topics(user: User = RequireUser, session: Session = Depends(get_session)):
     from sqlmodel import select
-    concepts = session.exec(select(Concept).order_by(Concept.track, Concept.id)).all()
+    concepts = session.exec(select(Concept).where(
+        (Concept.owner_user_id == None) | (Concept.owner_user_id == user.id)  # noqa: E711
+    ).order_by(Concept.track, Concept.id)).all()
     return [
         {"id": c.id, "slug": c.slug, "track": c.track, "title": c.title,
          "difficulty": c.difficulty, "tags": c.tags, "summary": c.summary, "source": c.source}
@@ -106,7 +103,10 @@ def topics(user: User = RequireUser, session: Session = Depends(get_session)):
 @router.get("/topic/{concept_id}")
 def topic(concept_id: int, user: User = RequireUser, session: Session = Depends(get_session)):
     from sqlmodel import select
-    c = session.get(Concept, concept_id)
+    c = session.exec(select(Concept).where(
+        Concept.id == concept_id,
+        (Concept.owner_user_id == None) | (Concept.owner_user_id == user.id),  # noqa: E711
+    )).first()
     if not c:
         raise HTTPException(404, "Not found")
     cards = session.exec(select(Card).where(

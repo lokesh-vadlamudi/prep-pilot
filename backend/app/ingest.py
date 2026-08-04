@@ -75,6 +75,7 @@ def sections_for_book(path: str, book: str) -> list[dict]:
             label = ch["title"] if len(chunks) == 1 else f"{ch['title']} — part {k + 1}"
             sections.append({
                 "book": book, "chapter": ch["title"], "section": label, "text": chunk,
+                "page_start": ch["page_start"], "page_end": ch["page_end"],
                 "citation": f"{book}, {ch['title']} (p{ch['page_start']}-{ch['page_end']})",
             })
     return sections

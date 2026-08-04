@@ -16,7 +16,7 @@ from .db import engine, init_db
 from .content.seed import seed_database, seed_problems
 from .scheduler import start_scheduler
 from . import auth
-from .routers import auth_routes, study_routes, ask_routes, problem_routes, mock_routes, roadmap_routes
+from .routers import auth_routes, study_routes, ask_routes, problem_routes, mock_routes, roadmap_routes, book_routes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("prep")
@@ -33,10 +33,9 @@ async def lifespan(app: FastAPI):
         added = seed_database(session)
         p_added, p_updated = seed_problems(session)
         log.info("seeded %d new concepts; problems +%d new, %d updated", added, p_added, p_updated)
-    if settings.scheduler_enabled:
-        _scheduler = start_scheduler()
-    else:
-        log.info("background scheduler disabled for %s", settings.environment)
+    # Book imports must progress in every environment. The setting only controls
+    # optional nightly curriculum generation (disabled in development).
+    _scheduler = start_scheduler(enable_nightly=settings.scheduler_enabled)
     yield
     if _scheduler:
         _scheduler.shutdown(wait=False)
@@ -49,6 +48,7 @@ app.include_router(ask_routes.router)
 app.include_router(problem_routes.router)
 app.include_router(mock_routes.router)
 app.include_router(roadmap_routes.router)
+app.include_router(book_routes.router)
 
 
 # ---- First-run setup (only allowed while no account exists) ----

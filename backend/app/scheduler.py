@@ -12,6 +12,7 @@ from .config import settings
 from .db import engine
 from .models import Concept, Card
 from . import tutor
+from .book_service import process_next_book
 
 log = logging.getLogger("prep.scheduler")
 
@@ -98,13 +99,18 @@ async def generate_new_concepts(per_track: int = 1, audience: str = "senior") ->
     return added
 
 
-def start_scheduler() -> AsyncIOScheduler:
+def start_scheduler(enable_nightly: bool = True) -> AsyncIOScheduler:
     scheduler = AsyncIOScheduler()
+    if enable_nightly:
+        scheduler.add_job(
+            generate_new_concepts,
+            CronTrigger(hour=settings.daily_generation_hour, minute=0),
+            id="nightly_content", replace_existing=True, misfire_grace_time=3600,
+        )
     scheduler.add_job(
-        generate_new_concepts,
-        CronTrigger(hour=settings.daily_generation_hour, minute=0),
-        id="nightly_content", replace_existing=True, misfire_grace_time=3600,
+        process_next_book, "interval", seconds=20, id="book_ingestion",
+        replace_existing=True, max_instances=1, coalesce=True,
     )
     scheduler.start()
-    log.info("scheduler started; nightly content at %02d:00", settings.daily_generation_hour)
+    log.info("scheduler started; book worker enabled; nightly content=%s", enable_nightly)
     return scheduler

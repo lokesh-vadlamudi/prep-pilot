@@ -34,6 +34,8 @@ _ADD_COLUMNS = {
         ("sequence", "INTEGER DEFAULT 0"),
         ("citation", "VARCHAR DEFAULT ''"),
         ("audience", "VARCHAR DEFAULT 'all'"),
+        ("owner_user_id", "INTEGER"),
+        ("book_id", "INTEGER"),
     ],
     "user": [
         ("level", "VARCHAR DEFAULT 'senior'"),

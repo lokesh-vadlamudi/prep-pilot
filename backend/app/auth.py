@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import secrets
+from urllib.parse import urlsplit
 
 import bcrypt
 from fastapi import Depends, HTTPException, Request, Response, status
@@ -69,12 +70,37 @@ def verify_login(session: Session, username: str, password: str) -> User | None:
 def issue_session(response: Response, user: User) -> None:
     token = _serializer().dumps({"uid": user.id, "u": user.username})
     response.set_cookie(
-        COOKIE, token, max_age=MAX_AGE, httponly=True, samesite="lax"
+        COOKIE, token, max_age=MAX_AGE, httponly=True, samesite="lax",
+        secure=settings.environment == "production", path="/",
     )
 
 
 def clear_session(response: Response) -> None:
-    response.delete_cookie(COOKIE)
+    response.delete_cookie(
+        COOKIE, httponly=True, samesite="lax",
+        secure=settings.environment == "production", path="/",
+    )
+
+
+def require_same_origin(request: Request) -> None:
+    """Reject browser requests explicitly identified as cross-site.
+
+    SameSite=Lax cookies are the primary CSRF boundary. These checks add a
+    strict Origin/Sec-Fetch-Site gate without breaking trusted non-browser jobs.
+    """
+    if request.method in {"GET", "HEAD", "OPTIONS"}:
+        return
+    fetch_site = request.headers.get("sec-fetch-site", "").lower()
+    if fetch_site in {"cross-site", "same-site"}:
+        raise HTTPException(403, "Cross-origin request rejected")
+    origin = request.headers.get("origin")
+    if origin:
+        parsed = urlsplit(origin)
+        # Compare browser-visible authority, not ASGI scheme: TLS may terminate
+        # at Tailscale Serve while the upstream app receives plain HTTP.
+        host = request.headers.get("host", "").lower()
+        if not parsed.scheme or not parsed.netloc or parsed.netloc.lower() != host:
+            raise HTTPException(403, "Cross-origin request rejected")
 
 
 def current_user(request: Request) -> User:

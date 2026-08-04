@@ -30,6 +30,9 @@ class Settings(BaseSettings):
 
     # --- Storage ---
     database_url: str = f"sqlite:///{DATA_DIR / 'prep.db'}"
+    book_storage_dir: str = str(DATA_DIR / "books")
+    max_book_bytes: int = 50 * 1024 * 1024
+    max_book_pages: int = 500
 
     # --- Runtime environment ---
     environment: str = "production"      # production | development
