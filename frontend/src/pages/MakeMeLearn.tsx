@@ -38,7 +38,7 @@ export default function MakeMeLearn() {
 
   return <div className="book-workspace">
     <main className="book-main">
-      <header className="page-head"><div><span className="eyebrow">PRIVATE LEARNING LAB</span><h1>Make Me Learn</h1><p>Turn a book you own into guided topics, quizzes, and source-backed tutoring.</p></div>
+      <header className="page-head book-page-head"><div><span className="eyebrow">PRIVATE LEARNING LAB</span><h1>Make Me Learn</h1><p>Turn a book you own into guided topics, quizzes, and source-backed tutoring.</p></div>
         <label className="btn primary">{busy ? "Importing…" : "Import book"}<input hidden type="file" accept="application/pdf,.pdf" disabled={busy} onChange={(e) => upload(e.target.files?.[0])} /></label>
       </header>
       {error && <div className="notice error">{error}</div>}
