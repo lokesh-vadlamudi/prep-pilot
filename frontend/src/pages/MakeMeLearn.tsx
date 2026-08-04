@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 
@@ -12,6 +12,10 @@ export default function MakeMeLearn() {
   const [messages, setMessages] = useState<Message[]>([]); const [question, setQuestion] = useState("");
   const [scope, setScope] = useState("book"); const [sectionId, setSectionId] = useState<number | undefined>();
   const [clearing, setClearing] = useState(false); const [confirmingClear, setConfirmingClear] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const confirmBtnRef = useRef<HTMLButtonElement>(null);
+  const cancelBtnRef = useRef<HTMLButtonElement>(null);
+  const [focusTextarea, setFocusTextarea] = useState(false);
 
   async function refresh(selectId?: number) {
     const list = await api.books(); setBooks(list);
@@ -23,6 +27,27 @@ export default function MakeMeLearn() {
     if (!active || !["queued", "processing", "extracting"].includes(active.status)) return;
     const timer = window.setInterval(() => refresh(active.id).catch(() => {}), 4000); return () => clearInterval(timer);
   }, [active?.id, active?.status]);
+
+  useEffect(() => {
+    if (confirmingClear) {
+      confirmBtnRef.current?.focus();
+    } else if (cancelBtnRef.current) {
+      cancelBtnRef.current.focus();
+    }
+  }, [confirmingClear]);
+
+  useEffect(() => {
+    if (focusTextarea) {
+      if (active && !busy) {
+        const texts = document.querySelectorAll(".chat-input textarea");
+        (texts[texts.length - 1] as HTMLTextAreaElement)?.focus();
+      } else {
+        const headings = document.querySelectorAll(".book-chat h2");
+        (headings[headings.length - 1] as HTMLElement)?.focus();
+      }
+      setFocusTextarea(false);
+    }
+  }, [focusTextarea, active?.id, busy]);
 
   async function upload(file?: File) {
     if (!file) return; setBusy(true); setError("");
@@ -42,6 +67,7 @@ export default function MakeMeLearn() {
     try {
       await api.clearBookChat(active.id);
       setMessages([]);
+      setFocusTextarea(true);
     } catch {
       setError("Could not clear chat. Please try again.");
     } finally { setClearing(false); }
@@ -68,13 +94,13 @@ export default function MakeMeLearn() {
             <div className="clear-confirm">
               <span>Clear all messages for <em>{active.title}</em>?</span>
               <div className="clear-confirm-actions">
-                <button className="btn" onClick={clearChat} disabled={clearing || busy} title="Clear chat">Clear</button>
-                <button className="btn" onClick={() => setConfirmingClear(false)} disabled={clearing || busy}>Cancel</button>
+                <button className="btn" ref={confirmBtnRef} onClick={clearChat} disabled={clearing || busy} title="Clear chat">Clear</button>
+                <button className="btn" ref={cancelBtnRef} onClick={() => setConfirmingClear(false)} disabled={clearing || busy}>Cancel</button>
               </div>
             </div>
           ) : null
         ) : messages.length > 0 ? (
-          <button className="btn clear-chat-btn" onClick={() => setConfirmingClear(true)} disabled={busy || clearing} title="Clear chat">Clear chat</button>
+          <button className="btn clear-chat-btn" ref={triggerRef} onClick={() => setConfirmingClear(true)} disabled={busy || clearing} title="Clear chat">Clear chat</button>
         ) : null}
       </div>
       {!active ? <p className="muted">Import or select a book to begin.</p> : <>
