@@ -80,7 +80,7 @@ type Runtime = { environment: string; release: string };
 export default function App() {
   const [auth, setAuth] = useState<Auth>({ loading: true, authed: false, user: "" });
   const [runtime, setRuntime] = useState<Runtime>({ environment: "production", release: "" });
-  const { toggle } = useTheme();
+  const { theme, toggle } = useTheme();
 
   useEffect(() => {
     api.me().then((r) => setAuth({
@@ -105,7 +105,7 @@ export default function App() {
     <div className={isDev ? "environment-dev" : ""}>
       {isDev && <DevBanner release={runtime.release} />}
       <div className="shell">
-        <Rail user={auth.user} invite={auth.invite} runtime={runtime} theme={useTheme().theme} themeToggle={toggle}
+        <Rail user={auth.user} invite={auth.invite} runtime={runtime} theme={theme} themeToggle={toggle}
               onLogout={() => setAuth({ loading: false, authed: false, user: "" })} />
         <div className="main">
           <Routes>
