@@ -92,6 +92,8 @@
    Dark tokens — semantic equivalents for night operations.
    Aviation semantics preserved (course=orange, pass=green …).
    No filter/invert; every light-only surface gets a dark pair.
+   All foreground/background pairs meet WCAG AA (4.5:1 for text,
+   3:1 for large text and UI components).
    ============================================================ */
 [data-theme="dark"] {
   --sky: #0b1625;
@@ -99,7 +101,7 @@
   --paper-2: #162030;
   --ink: #e4eaf3;
   --muted: #8e9daf;
-  --faint: #5d6f85;
+  --faint: #9aa2b2;
   --hairline: rgba(228, 234, 243, 0.10);
   --hairline-soft: rgba(228, 234, 243, 0.06);
 
@@ -118,19 +120,19 @@
   --chip-orange-bg: #3d1e0b;
   --chip-orange-fg: #f7a377;
   --chip-green-bg: #083d30;
-  --chip-green-fg: #5eead4;
+  --chip-green-fg: #34d399;
   --chip-purple-bg: #2a1452;
   --chip-purple-fg: #c4a1ff;
   --chip-amber-bg: #3b2504;
   --chip-amber-fg: #fbbf24;
   --chip-red-bg: #3b0f0f;
-  --chip-red-fg: #fca5a5;
+  --chip-red-fg: #f87171;
   --chip-diff-e-bg: #083d30;
-  --chip-diff-e-fg: #047857;
+  --chip-diff-e-fg: #34d399;
   --chip-diff-m-bg: #3b2504;
   --chip-diff-m-fg: #d97706;
   --chip-diff-h-bg: #3b0f0f;
-  --chip-diff-h-fg: #ef4444;
+  --chip-diff-h-fg: #f87171;
   --pod-bg-start: #3b1a08;
   --feedback-bg: #2a1608;
   --chat-bg: #0f1724;
@@ -341,22 +343,26 @@ button { font-family: inherit; cursor: pointer; }
 .brand .logo b { color: var(--course); }
 .brand .tag { font-family: var(--mono); font-size: 10px; color: var(--faint); letter-spacing: 0.1em; }
 
-/* theme toggle — sun/moon in the brand row */
+/* theme toggle — sun/moon + label in the brand row */
 .theme-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
+  gap: 4px;
+  min-width: 36px;
   height: 32px;
   border: 1.5px solid var(--hairline);
   border-radius: 6px;
   background: var(--paper-2);
   color: var(--muted);
   cursor: pointer;
-  padding: 0;
-  margin-left: auto;
+  padding: 0 8px 0 6px;
   transition: border-color 0.15s ease, background 0.15s ease;
   flex-shrink: 0;
+  font-size: 13px;
+  font-family: var(--mono);
+  font-weight: 500;
+  line-height: 1;
 }
 .theme-toggle:hover {
   border-color: var(--course);
@@ -367,14 +373,26 @@ button { font-family: inherit; cursor: pointer; }
   outline: 2px solid var(--course);
   outline-offset: 2px;
 }
+[data-theme="dark"] .theme-toggle:hover {
+  background: var(--chip-orange-bg);
+  color: var(--chip-orange-fg);
+}
 .theme-icon-light,
 .theme-icon-dark {
   font-size: 16px;
   line-height: 1;
   transition: opacity 0.15s ease;
 }
+.theme-label {
+  white-space: nowrap;
+}
 [data-theme="light"] .theme-icon-dark { display: none; }
 [data-theme="dark"]  .theme-icon-light { display: none; }
+
+@media (max-width: 400px) {
+  .theme-toggle { padding: 0; gap: 0; }
+  .theme-label { display: none; }
+}
 
 .navlink {
   display: flex;

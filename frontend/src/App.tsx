@@ -36,7 +36,7 @@ export function useTheme() {
     // Apply theme attribute and browser chrome colors on mount and every change.
     const t = themeRef.current;
     document.documentElement.setAttribute("data-theme", t);
-    document.documentElement.setAttribute("color-scheme", t);
+    document.documentElement.style.colorScheme = t;
     const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
     if (meta) {
       meta.content = t === "dark" ? "#0c1626" : "#F2F6FA";
@@ -105,7 +105,7 @@ export default function App() {
     <div className={isDev ? "environment-dev" : ""}>
       {isDev && <DevBanner release={runtime.release} />}
       <div className="shell">
-        <Rail user={auth.user} invite={auth.invite} runtime={runtime} themeToggle={toggle}
+        <Rail user={auth.user} invite={auth.invite} runtime={runtime} theme={useTheme().theme} themeToggle={toggle}
               onLogout={() => setAuth({ loading: false, authed: false, user: "" })} />
         <div className="main">
           <Routes>
@@ -133,8 +133,8 @@ function DevBanner({ release }: { release: string }) {
   return <div className="dev-banner">Development preview · {release || "local"} · isolated test data</div>;
 }
 
-function Rail({ user, invite, runtime, themeToggle, onLogout }: {
-  user: string; invite?: string; runtime: Runtime; themeToggle: () => void; onLogout: () => void;
+function Rail({ user, invite, runtime, theme, themeToggle, onLogout }: {
+  user: string; invite?: string; runtime: Runtime; theme: string; themeToggle: () => void; onLogout: () => void;
 }) {
   const nav = useNavigate();
   const [brain, setBrain] = useState<{ online: boolean; model: string }>({ online: false, model: "" });
@@ -170,11 +170,13 @@ function Rail({ user, invite, runtime, themeToggle, onLogout }: {
         <button
           className="theme-toggle"
           onClick={themeToggle}
-          aria-pressed={false}
-          title="Toggle dark mode"
+          aria-pressed={theme === "dark"}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={theme === "dark" ? "Light mode" : "Dark mode"}
         >
           <span className="theme-icon-light" aria-hidden>☀</span>
           <span className="theme-icon-dark" aria-hidden>☾</span>
+          <span className="theme-label">{theme === "dark" ? "Dark" : "Light"}</span>
         </button>
       </div>
       {links.map((l) => (
