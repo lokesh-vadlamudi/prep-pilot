@@ -17,7 +17,7 @@ const Solve = lazy(() => import("./pages/Solve"));
 
 const THEME_KEY = "pp-theme";
 
-function initialTheme(): string {
+function initialTheme(): "light" | "dark" {
   try {
     const stored = localStorage.getItem(THEME_KEY);
     if (stored === "dark" || stored === "light") return stored;
@@ -28,7 +28,7 @@ function initialTheme(): string {
 // ── Theme provider (centralized state) ────────────────────────────
 
 export function useTheme() {
-  const [theme, setTheme] = useState<string>(initialTheme);
+  const [theme, setTheme] = useState<"light" | "dark">(initialTheme);
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
@@ -116,7 +116,7 @@ export default function App() {
             <Route path="/mock" element={<Mock />} />
             <Route path="/problems" element={<Problems />} />
             <Route path="/problems/:id/solve" element={
-              <Suspense fallback={<div className="loading">loading editor</div>}><Solve /></Suspense>
+              <Suspense fallback={<div className="loading">loading editor</div>}><Solve theme={theme} /></Suspense>
             } />
             <Route path="/ask" element={<Ask />} />
             <Route path="/progress" element={<Progress />} />

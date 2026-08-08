@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import CodeMirror from "@uiw/react-codemirror";
+import { oneDark } from "@codemirror/theme-one-dark";
 import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
 import { StreamLanguage } from "@codemirror/language";
 import { go } from "@codemirror/legacy-modes/mode/go";
-import { oneDark } from "@codemirror/theme-one-dark";
 import Markdown from "../components/Markdown";
 import { api, RunResult, diffClass } from "../api";
-import { useTheme } from "../App";
 
 type Msg = { role: "user" | "assistant"; content: string };
 type Lang = "python" | "javascript" | "go";
@@ -20,10 +19,9 @@ const LANGS: { id: Lang; label: string }[] = [
 const langExt = (l: Lang) =>
   l === "python" ? python() : l === "javascript" ? javascript() : StreamLanguage.define(go);
 
-export default function Solve() {
+export default function Solve({ theme }: { theme: "light" | "dark" }) {
   const { id } = useParams();
   const pid = Number(id);
-  const { theme } = useTheme();
   const [problem, setProblem] = useState<any>(null);
   const [lang, setLang] = useState<Lang>("python");
   const [code, setCode] = useState("");

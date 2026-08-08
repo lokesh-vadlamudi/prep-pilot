@@ -815,11 +815,11 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .solve-head { margin-bottom: 18px; }
 .solve-head h1 { font-family: var(--display); text-transform: uppercase; letter-spacing: 0.02em; }
 .solve-grid { display: grid; grid-template-columns: 1fr 380px; gap: 18px; align-items: start; }
-.solve-main { min-width: 0; }
+.solve-main { min-width: 0; width: 100%; }
 
 .editor-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; }
 .lang-tabs { display: flex; gap: 6px; }
-.editor-wrap { border: 1px solid var(--hairline); border-radius: var(--r); overflow: hidden; background: var(--paper); box-shadow: var(--shadow-card); }
+.editor-wrap { border: 1px solid var(--hairline); border-radius: var(--r); overflow: hidden; background: var(--paper); box-shadow: var(--shadow-card); min-width: 0; width: 100%; max-width: 100%; }
 .editor-wrap .cm-editor { font-size: 13.5px; }
 .editor-wrap .cm-content { font-family: var(--mono); }
 .editor-wrap .cm-focused { outline: none; }
