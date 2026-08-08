@@ -967,12 +967,13 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .t-summary { color: var(--faint); font-size: 13px; }
 
 /* Compact controls keep book lessons moving without competing with the lesson. */
+.lesson-page { width: 100%; max-width: 1120px; }
+.lesson-page > .panel.md { max-width: none; }
 .lesson-toolbar {
   display: grid; grid-template-columns: minmax(230px, 1fr) auto minmax(230px, 1fr);
   align-items: center; gap: 16px; margin-bottom: 18px; padding: 12px 14px;
   border: 1px solid var(--hairline-soft); border-radius: 10px; background: var(--paper);
 }
-.lesson-toolbar.bottom { margin-top: -2px; margin-bottom: 18px; }
 .lesson-toolbar-meta, .lesson-nav-actions { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .lesson-complete {
   display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0;

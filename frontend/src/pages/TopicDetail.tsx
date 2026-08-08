@@ -3,9 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import Markdown from "../components/Markdown";
 import { api, trackClass } from "../api";
 
-function LessonToolbar({ nav, completed, onToggle, bottom = false }: any) {
+function LessonToolbar({ nav, completed, onToggle }: any) {
   return (
-    <nav className={`lesson-toolbar${bottom ? " bottom" : ""}`} aria-label={bottom ? "Lesson navigation after content" : "Lesson navigation"}>
+    <nav className="lesson-toolbar" aria-label="Lesson navigation">
       <div className="lesson-toolbar-meta">
         <button className="lesson-complete" onClick={onToggle} aria-pressed={completed}>
           <span className={`prob-check${completed ? " solved" : ""}`} aria-hidden="true">✓</span>
@@ -40,6 +40,8 @@ export default function TopicDetail() {
   const [topic, setTopic] = useState<any>(null);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    setTopic(null);
     if (id) api.topic(Number(id)).then(setTopic);
   }, [id]);
 
@@ -53,7 +55,7 @@ export default function TopicDetail() {
   const nav = topic.book_navigation;
 
   return (
-    <>
+    <div className="lesson-page">
       <div className="page-head">
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span className={"chip " + trackClass(topic.track)}>{topic.track}</span>
@@ -70,8 +72,6 @@ export default function TopicDetail() {
         <Markdown>{topic.lesson_md}</Markdown>
       </div>
 
-      {nav && <LessonToolbar nav={nav} completed={topic.completed} onToggle={toggleComplete} bottom />}
-
       <div className="panel">
         <div className="eyebrow" style={{ marginBottom: 12 }}>Practice cards ({topic.cards.length})</div>
         {topic.cards.map((c: any) => (
@@ -86,6 +86,6 @@ export default function TopicDetail() {
           </div>
         ))}
       </div>
-    </>
+    </div>
   );
 }
