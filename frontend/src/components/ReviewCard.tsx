@@ -2,7 +2,7 @@ import { useState } from "react";
 import Markdown from "./Markdown";
 import { api, Card, SubmitResult, trackClass } from "../api";
 
-export default function ReviewCard({ card, onDone }: { card: Card; onDone: () => void }) {
+export default function ReviewCard({ card, onDone }: { card: Card; onDone: (result?: SubmitResult) => void }) {
   const [selected, setSelected] = useState<string>("");
   const [text, setText] = useState("");
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -126,7 +126,7 @@ export default function ReviewCard({ card, onDone }: { card: Card; onDone: () =>
         />
       )}
 
-      {result && <button className="btn" style={{ marginTop: 20 }} onClick={onDone}>Next →</button>}
+      {result && <button className="btn" style={{ marginTop: 20 }} onClick={() => onDone(result)}>Next →</button>}
     </div>
   );
 }

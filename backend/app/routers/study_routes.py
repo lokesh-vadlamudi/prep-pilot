@@ -5,11 +5,11 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from ..auth import RequireUser
 from ..db import get_session
-from ..models import Card, Concept, User
+from ..models import Card, Concept, ConceptStatus, User, utcnow
 from .. import service, tutor
 
 router = APIRouter(prefix="/api", tags=["study"], dependencies=[RequireUser])
@@ -89,20 +89,22 @@ def progress(user: User = RequireUser, session: Session = Depends(get_session)):
 
 @router.get("/topics")
 def topics(user: User = RequireUser, session: Session = Depends(get_session)):
-    from sqlmodel import select
     concepts = session.exec(select(Concept).where(
         (Concept.owner_user_id == None) | (Concept.owner_user_id == user.id)  # noqa: E711
     ).order_by(Concept.track, Concept.id)).all()
+    completed = {s.concept_id for s in session.exec(select(ConceptStatus).where(
+        ConceptStatus.user_id == user.id, ConceptStatus.completed == True  # noqa: E712
+    )).all()}
     return [
         {"id": c.id, "slug": c.slug, "track": c.track, "title": c.title,
-         "difficulty": c.difficulty, "tags": c.tags, "summary": c.summary, "source": c.source}
+         "difficulty": c.difficulty, "tags": c.tags, "summary": c.summary,
+         "source": c.source, "completed": c.id in completed}
         for c in concepts
     ]
 
 
 @router.get("/topic/{concept_id}")
 def topic(concept_id: int, user: User = RequireUser, session: Session = Depends(get_session)):
-    from sqlmodel import select
     c = session.exec(select(Concept).where(
         Concept.id == concept_id,
         (Concept.owner_user_id == None) | (Concept.owner_user_id == user.id),  # noqa: E711
@@ -111,11 +113,55 @@ def topic(concept_id: int, user: User = RequireUser, session: Session = Depends(
         raise HTTPException(404, "Not found")
     cards = session.exec(select(Card).where(
         Card.concept_id == concept_id, Card.user_id == user.id)).all()
+    status = session.exec(select(ConceptStatus).where(
+        ConceptStatus.user_id == user.id, ConceptStatus.concept_id == concept_id)).first()
+    book_navigation = None
+    if c.book_id:
+        siblings = session.exec(select(Concept).where(
+            Concept.book_id == c.book_id, Concept.owner_user_id == user.id
+        ).order_by(Concept.sequence, Concept.id)).all()
+        position = next((i for i, item in enumerate(siblings) if item.id == c.id), -1)
+        if position >= 0:
+            book_navigation = {
+                "book_id": c.book_id,
+                "book_title": c.book,
+                "position": position + 1,
+                "total": len(siblings),
+                "previous": ({"id": siblings[position - 1].id, "title": siblings[position - 1].title}
+                             if position > 0 else None),
+                "next": ({"id": siblings[position + 1].id, "title": siblings[position + 1].title}
+                         if position + 1 < len(siblings) else None),
+            }
     return {
         "id": c.id, "track": c.track, "title": c.title, "difficulty": c.difficulty,
         "tags": c.tags, "summary": c.summary, "lesson_md": c.lesson_md, "source": c.source,
+        "completed": bool(status and status.completed),
+        "book_navigation": book_navigation,
         "cards": [{"card_id": x.id, "kind": x.kind, "prompt": x.prompt,
                    "choices": json.loads(x.choices_json) if x.choices_json else [],
                    "due_date": x.due_date.isoformat(), "introduced": x.introduced,
                    "interval_days": x.interval_days} for x in cards],
     }
+
+
+class TopicStatusIn(BaseModel):
+    completed: bool
+
+
+@router.post("/topic/{concept_id}/status")
+def set_topic_status(concept_id: int, body: TopicStatusIn, user: User = RequireUser,
+                     session: Session = Depends(get_session)):
+    c = session.exec(select(Concept).where(
+        Concept.id == concept_id,
+        (Concept.owner_user_id == None) | (Concept.owner_user_id == user.id),  # noqa: E711
+    )).first()
+    if not c:
+        raise HTTPException(404, "Not found")
+    status = session.exec(select(ConceptStatus).where(
+        ConceptStatus.user_id == user.id, ConceptStatus.concept_id == concept_id)).first()
+    if not status:
+        status = ConceptStatus(user_id=user.id, concept_id=concept_id)
+    status.completed = body.completed
+    status.completed_at = utcnow() if body.completed else None
+    session.add(status); session.commit()
+    return {"ok": True, "completed": status.completed}

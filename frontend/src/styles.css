@@ -966,6 +966,65 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .t-title { font-weight: 500; }
 .t-summary { color: var(--faint); font-size: 13px; }
 
+/* Compact controls keep book lessons moving without competing with the lesson. */
+.lesson-page { width: 100%; max-width: 1120px; }
+.lesson-page > .panel.md { max-width: none; }
+.lesson-toolbar {
+  display: grid; grid-template-columns: minmax(230px, 1fr) auto minmax(230px, 1fr);
+  align-items: center; gap: 16px; margin-bottom: 18px; padding: 12px 14px;
+  border: 1px solid var(--hairline-soft); border-radius: 10px; background: var(--paper);
+}
+.lesson-toolbar-meta, .lesson-nav-actions { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.lesson-complete {
+  display: inline-flex; align-items: center; gap: 8px; padding: 0; border: 0;
+  background: transparent; color: var(--ink); font: 500 12px var(--mono); cursor: pointer;
+}
+.lesson-complete:hover .prob-check { border-color: var(--pass); }
+.lesson-book-link { color: var(--data); font: 500 12px var(--mono); white-space: nowrap; }
+.lesson-book-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+.lesson-position { color: var(--muted); font: 600 11px var(--mono); letter-spacing: 0.05em; white-space: nowrap; }
+.lesson-nav-actions { justify-content: flex-end; }
+.lesson-nav-link {
+  display: grid; gap: 2px; min-width: 0; max-width: 190px; padding: 5px 8px;
+  border-radius: 7px; color: var(--ink); text-align: left;
+}
+.lesson-nav-link.next { text-align: right; }
+.lesson-nav-link:hover { background: var(--warm-tint); }
+.lesson-nav-direction { color: var(--course-deep); font: 600 12px var(--mono); }
+.lesson-nav-title { overflow: hidden; color: var(--faint); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.topic-quiz-cta { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.topic-quiz-cta h2, .topic-quiz-result h2, .topic-chat h2 { margin: 6px 0; }
+.topic-quiz-cta p, .topic-quiz-result p { margin: 0; color: var(--muted); }
+.topic-quiz-stage { max-width: 860px; margin: 0 auto 18px; }
+.topic-quiz-stage .qcard { margin-top: 16px; }
+.topic-quiz-result { text-align: center; padding: 38px 24px; }
+.topic-result-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+.topic-chat { margin-top: 18px; }
+.topic-chat-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.topic-chat-modes { display: flex; gap: 7px; }
+.topic-chat-log { min-height: 170px; max-height: 440px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px 0; }
+.topic-chat-log .bubble { max-width: 82%; }
+.topic-chat-empty { align-self: center; margin: auto; color: var(--faint); font-size: 13px; }
+.topic-chat-input { display: flex; align-items: flex-end; gap: 9px; padding-top: 12px; border-top: 1px solid var(--hairline-soft); }
+.topic-chat-input textarea { flex: 1; min-height: 68px; resize: vertical; background: var(--paper); border: 1px solid var(--hairline); border-radius: 8px; color: var(--ink); font: 14px var(--body); padding: 10px 12px; }
+.topic-chat-input textarea:focus { outline: none; border-color: var(--data); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14); }
+
+@media (max-width: 760px) {
+  .lesson-toolbar { grid-template-columns: 1fr auto; gap: 12px; }
+  .lesson-position { grid-column: 2; grid-row: 1; }
+  .lesson-nav-actions { grid-column: 1 / -1; justify-content: space-between; border-top: 1px solid var(--hairline-soft); padding-top: 9px; }
+  .lesson-nav-link { max-width: 46%; }
+  .topic-quiz-cta, .topic-chat-head { align-items: stretch; flex-direction: column; }
+  .topic-chat-modes { align-self: flex-start; }
+  .topic-chat-log .bubble { max-width: 94%; }
+}
+
+@media (max-width: 480px) {
+  .lesson-toolbar { display: flex; flex-direction: column; align-items: stretch; }
+  .lesson-toolbar-meta { justify-content: space-between; }
+  .lesson-position { text-align: center; }
+}
+
 /* login — a boarding pass on the chart table */
 .auth-wrap { position: relative; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
 .auth-card { position: relative; width: 100%; max-width: 400px; box-shadow: var(--shadow-pop); animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both; overflow: hidden; }

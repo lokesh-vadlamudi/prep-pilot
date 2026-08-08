@@ -108,6 +108,8 @@ export const api = {
   progress: () => req("/api/progress"),
   topics: () => req("/api/topics"),
   topic: (id: number) => req(`/api/topic/${id}`),
+  topicStatus: (id: number, completed: boolean) =>
+    req(`/api/topic/${id}/status`, { method: "POST", headers: json, body: JSON.stringify({ completed }) }),
   ask: (question: string, context = "", history: { role: string; content: string }[] = []) =>
     req("/api/ask", { method: "POST", headers: json, body: JSON.stringify({ question, context, history }) }),
   brainHealth: () => req("/api/brain-health"),
