@@ -109,6 +109,6 @@ export default function MakeMeLearn() {
         <div className="chat-input"><textarea value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Ask a question grounded in this book…"/><button className="btn primary" onClick={ask}>Ask</button></div>
       </>}
     </aside>
-    {active && <section className="panel chapter-journey"><h2>Chapter journey</h2><div className="topic-path">{active.sections?.map((s) => <div className={`topic-node ${s.status}`} key={s.id} onClick={() => setSectionId(s.id)}><div><strong>{s.topic_title || s.label}</strong>{s.summary && <p>{s.summary}</p>}<small>{s.citation}</small></div><span>{s.status}</span>{s.concept_id && <Link to={`/topics/${s.concept_id}`}>{active.activated ? "Learn / quiz →" : "Preview →"}</Link>}</div>)}</div></section>}
+    {active && <section className="panel chapter-journey"><h2>Chapter journey</h2><div className="topic-path">{active.sections?.map((s) => <div className={`topic-node ${s.status}`} key={s.id} onClick={() => setSectionId(s.id)}><div><strong>{s.topic_title || s.label}</strong>{s.summary && <p>{s.summary}</p>}<small>{s.citation}</small></div><span>{s.status}</span>{s.concept_id && <Link to={`/topics/${s.concept_id}`}>{active.activated ? "Learn / quiz →" : "Preview lesson →"}</Link>}</div>)}</div></section>}
   </div>;
 }
