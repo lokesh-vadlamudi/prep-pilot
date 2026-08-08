@@ -3,6 +3,38 @@ import { Link, useParams } from "react-router-dom";
 import Markdown from "../components/Markdown";
 import { api, trackClass } from "../api";
 
+function LessonToolbar({ nav, completed, onToggle, bottom = false }: any) {
+  return (
+    <nav className={`lesson-toolbar${bottom ? " bottom" : ""}`} aria-label={bottom ? "Lesson navigation after content" : "Lesson navigation"}>
+      <div className="lesson-toolbar-meta">
+        <button className="lesson-complete" onClick={onToggle} aria-pressed={completed}>
+          <span className={`prob-check${completed ? " solved" : ""}`} aria-hidden="true">✓</span>
+          <span>{completed ? "Completed" : "Mark complete"}</span>
+        </button>
+        <Link className="lesson-book-link" to={nav ? "/make-me-learn" : "/topics"}>
+          ← {nav ? "Book journey" : "Syllabus"}
+        </Link>
+      </div>
+
+      {nav && <span className="lesson-position">Lesson {nav.position} of {nav.total}</span>}
+
+      {nav && <div className="lesson-nav-actions">
+        {nav.previous && <Link className="lesson-nav-link previous" to={`/topics/${nav.previous.id}`}>
+          <span className="lesson-nav-direction">← Previous</span>
+          <span className="lesson-nav-title">{nav.previous.title}</span>
+        </Link>}
+        {nav.next ? <Link className="lesson-nav-link next" to={`/topics/${nav.next.id}`}>
+          <span className="lesson-nav-direction">Next →</span>
+          <span className="lesson-nav-title">{nav.next.title}</span>
+        </Link> : <Link className="lesson-nav-link next" to="/make-me-learn">
+          <span className="lesson-nav-direction">Finish →</span>
+          <span className="lesson-nav-title">Return to book journey</span>
+        </Link>}
+      </div>}
+    </nav>
+  );
+}
+
 export default function TopicDetail() {
   const { id } = useParams();
   const [topic, setTopic] = useState<any>(null);
@@ -23,29 +55,22 @@ export default function TopicDetail() {
   return (
     <>
       <div className="page-head">
-        <Link to={nav ? "/make-me-learn" : "/topics"} className="mono" style={{ color: "var(--faint)", fontSize: 12 }}>
-          ← {nav ? nav.book_title : "syllabus"}
-        </Link>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span className={"chip " + trackClass(topic.track)}>{topic.track}</span>
           <span className="chip">{topic.difficulty}</span>
           {topic.source === "ai" && <span className="chip ai">ai-authored</span>}
         </div>
         <h1>{topic.title}</h1>
-        {nav && <p className="muted">Lesson {nav.position} of {nav.total} · {nav.book_title}</p>}
-        <button className={"btn " + (topic.completed ? "primary" : "ghost")} onClick={toggleComplete}>
-          {topic.completed ? "✓ Completed" : "Mark complete"}
-        </button>
+        {nav && <p className="muted">{nav.book_title}</p>}
       </div>
 
-      {nav && <div className="panel" style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        {nav.previous ? <Link className="btn ghost" to={`/topics/${nav.previous.id}`}>← {nav.previous.title}</Link> : <span />}
-        {nav.next ? <Link className="btn primary" to={`/topics/${nav.next.id}`}>{nav.next.title} →</Link> : <Link className="btn primary" to="/make-me-learn">Back to book →</Link>}
-      </div>}
+      <LessonToolbar nav={nav} completed={topic.completed} onToggle={toggleComplete} />
 
       <div className="panel md">
         <Markdown>{topic.lesson_md}</Markdown>
       </div>
+
+      {nav && <LessonToolbar nav={nav} completed={topic.completed} onToggle={toggleComplete} bottom />}
 
       <div className="panel">
         <div className="eyebrow" style={{ marginBottom: 12 }}>Practice cards ({topic.cards.length})</div>
