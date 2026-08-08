@@ -209,6 +209,16 @@
 [data-theme="dark"] .md pre { background: var(--code-bg); }
 [data-theme="dark"] .md pre code { color: var(--code-fg); }
 [data-theme="dark"] .md a { color: #6ea8fe; border-color: rgba(110, 168, 254, 0.35); }
+[data-theme="dark"] .bubble.user,
+[data-theme="dark"] .bubble.candidate {
+  background: var(--paper);
+  color: var(--ink);
+}
+[data-theme="dark"] .bubble.assistant {
+  background: var(--assistant-bubble-bg);
+  border-color: var(--assistant-bubble-border);
+  color: var(--ink);
+}
 [data-theme="dark"] .chat-msg { background: var(--paper); }
 [data-theme="dark"] .chat-msg.user { background: var(--chip-orange-bg); }
 [data-theme="dark"] .chat-prompts button { background: var(--paper); }
