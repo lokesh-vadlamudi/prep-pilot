@@ -349,12 +349,16 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .brand {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
   padding: 0 8px 22px;
 }
 .brand .logo {
+  grid-column: 1;
+  grid-row: 1;
   font-family: var(--display);
   font-weight: 700;
   font-size: 24px;
@@ -363,7 +367,18 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--ink);
 }
 .brand .logo b { color: var(--course); }
-.brand .tag { font-family: var(--mono); font-size: 10px; color: var(--faint); letter-spacing: 0.1em; }
+.brand .tag {
+  grid-column: 1;
+  grid-row: 2;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--faint);
+  letter-spacing: 0.1em;
+}
+.brand .theme-toggle {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
 
 /* theme toggle — sun/moon + label in the brand row */
 .theme-toggle {
