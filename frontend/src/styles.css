@@ -923,6 +923,10 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .bubble.assistant .md { font-size: 13.5px; }
 .bubble.assistant .md :first-child { margin-top: 0; }
 .bubble.assistant .md :last-child { margin-bottom: 0; }
+
+/* dark-mode bubble surfaces — --ink is a text color in dark mode, not a background */
+[data-theme="dark"] .bubble.user { background: var(--paper); color: var(--ink); }
+[data-theme="dark"] .bubble.assistant { background: var(--assistant-bubble-bg); color: var(--ink); }
 .mentor-input { border-top: 1px solid var(--hairline-soft); padding: 10px; display: flex; gap: 8px; }
 .mentor-input textarea { flex: 1; resize: none; height: 44px; background: var(--paper); border: 1px solid var(--hairline); border-radius: 8px; color: var(--ink); font-family: var(--body); font-size: 13px; padding: 10px 12px; transition: border-color 0.15s ease; }
 .mentor-input textarea:focus { outline: none; border-color: var(--data); }
