@@ -224,3 +224,13 @@ class ProblemStatus(SQLModel, table=True):
     last_touched: Optional[datetime] = None
     # spaced revision: when this solved problem should be resurfaced
     revisit_date: Optional[date] = None
+
+
+class ConceptStatus(SQLModel, table=True):
+    """Per-user manual completion state for syllabus concepts."""
+    __table_args__ = (UniqueConstraint("user_id", "concept_id", name="ux_status_user_concept"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    concept_id: int = Field(index=True, foreign_key="concept.id")
+    completed: bool = False
+    completed_at: Optional[datetime] = None

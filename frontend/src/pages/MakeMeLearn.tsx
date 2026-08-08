@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 
 type Section = { id: number; chapter: string; label: string; citation: string; status: string; concept_id?: number; topic_title?: string; summary?: string; error_message?: string };
-type Book = { id: number; title: string; status: string; page_count: number; total_sections: number; completed_sections: number; activated: boolean; error_message?: string; sections?: Section[] };
+type Book = { id: number; title: string; status: string; page_count: number; total_sections: number; completed_sections: number; generated_lessons: number; failed_sections: number; remaining_sections: number; activated: boolean; error_message?: string; sections?: Section[] };
 type Message = { role: string; content: string; citations?: { citation: string }[] };
 
 export default function MakeMeLearn() {
@@ -80,8 +80,8 @@ export default function MakeMeLearn() {
       {error && <div className="notice error">{error}</div>}
       {!books.length && <section className="panel book-empty"><h2>Your private library is empty</h2><p>Choose a digitally readable PDF. Processing stays on the Mac mini and private DGX; OCR is not included yet.</p><p className="muted">Maximum 50 MB and 500 pages. Only upload material you have rights to process.</p></section>}
       {!!books.length && <div className="book-picker">{books.map((b) => <button className={active?.id === b.id ? "active" : ""} key={b.id} onClick={() => refresh(b.id)}>{b.title}<small>{b.status}</small></button>)}</div>}
-      {active && <section className="panel book-overview"><div><span className="eyebrow">{active.status}</span><h2>{active.title}</h2><p>{active.page_count} pages · {active.completed_sections}/{active.total_sections} topics generated</p></div>
-        <progress max={Math.max(active.total_sections, 1)} value={active.completed_sections} />
+      {active && <section className="panel book-overview"><div><span className="eyebrow">{active.status}</span><h2>{active.title}</h2><p>{active.page_count} pages · {active.generated_lessons} lessons ready · {active.remaining_sections} remaining{active.failed_sections ? ` · ${active.failed_sections} need retry` : ""}</p></div>
+        <progress max={Math.max(active.total_sections, 1)} value={active.generated_lessons + active.failed_sections} />
         {!active.activated && ["ready", "partial"].includes(active.status) && <button className="btn primary" onClick={async () => { await api.activateBook(active.id); await refresh(active.id); }}>Activate course</button>}
         {active.status === "partial" && <button className="btn" onClick={async () => { await api.retryBook(active.id); await refresh(active.id); }}>Retry failed topics</button>}
       </section>}

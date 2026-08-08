@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, trackClass } from "../api";
 
-type Topic = { id: number; track: string; title: string; difficulty: string; tags: string; summary: string; source: string };
+type Topic = { id: number; track: string; title: string; difficulty: string; tags: string; summary: string; source: string; completed: boolean };
 
 export default function Topics() {
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -26,7 +26,17 @@ export default function Topics() {
     }
   }
 
-  const tracks = ["DSA", "System Design", "CS Fundamentals", "Behavioral"];
+  const standardTracks = ["DSA", "System Design", "CS Fundamentals", "Behavioral"];
+  const tracks = [...new Set(topics.map((topic) => topic.track))].sort((a, b) => {
+    const ai = standardTracks.indexOf(a); const bi = standardTracks.indexOf(b);
+    if (ai >= 0 || bi >= 0) return (ai >= 0 ? ai : standardTracks.length) - (bi >= 0 ? bi : standardTracks.length);
+    return a.localeCompare(b);
+  });
+
+  async function toggleComplete(topic: Topic) {
+    await api.topicStatus(topic.id, !topic.completed);
+    setTopics((rows) => rows.map((row) => row.id === topic.id ? { ...row, completed: !row.completed } : row));
+  }
 
   return (
     <>
@@ -50,16 +60,21 @@ export default function Topics() {
         if (!rows.length) return null;
         return (
           <div className="panel" key={t}>
-            <div className="eyebrow" style={{ marginBottom: 10 }}>{t}</div>
+            <div className="eyebrow" style={{ marginBottom: 10 }}>{t} · {rows.filter((x) => x.completed).length}/{rows.length} complete</div>
             {rows.map((x) => (
-              <Link to={`/topics/${x.id}`} className="topic-row" key={x.id}>
+              <div className="topic-row" key={x.id}>
+                <button className={"prob-check " + (x.completed ? "solved" : "todo")}
+                  title={x.completed ? "Completed — click to reset" : "Mark topic complete"}
+                  aria-label={`${x.completed ? "Reset" : "Complete"} ${x.title}`}
+                  onClick={() => toggleComplete(x)}>{x.completed ? "✓" : ""}</button>
                 <span className={"chip " + trackClass(x.track)}>{x.difficulty}</span>
-                <div style={{ flex: 1 }}>
+                <Link to={`/topics/${x.id}`} style={{ flex: 1, color: "inherit", textDecoration: "none" }}>
                   <div className="t-title">{x.title}</div>
                   <div className="t-summary">{x.summary}</div>
-                </div>
+                </Link>
                 {x.source === "ai" && <span className="chip ai">ai</span>}
-              </Link>
+                {x.source === "book" && <span className="chip">book</span>}
+              </div>
             ))}
           </div>
         );

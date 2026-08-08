@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 from .. import book_service, llm
 from ..auth import RequireUser, require_same_origin
 from ..db import get_session
-from ..models import Attempt, Book, BookChatMessage, Card, Concept, IngestionSection, User
+from ..models import Attempt, Book, BookChatMessage, Card, Concept, ConceptStatus, IngestionSection, User
 
 router = APIRouter(prefix="/api/books", tags=["books"], dependencies=[RequireUser, Depends(require_same_origin)])
 
@@ -62,6 +62,7 @@ def delete_book(book_id: int, user: User = RequireUser, session: Session = Depen
     book = book_service.owned_book(session, user.id, book_id)
     concepts = session.exec(select(Concept).where(Concept.book_id == book.id)).all()
     for concept in concepts:
+        for status in session.exec(select(ConceptStatus).where(ConceptStatus.concept_id == concept.id)).all(): session.delete(status)
         for card in session.exec(select(Card).where(Card.concept_id == concept.id)).all(): session.delete(card)
         for attempt in session.exec(select(Attempt).where(Attempt.concept_id == concept.id)).all(): session.delete(attempt)
         session.delete(concept)

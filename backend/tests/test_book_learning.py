@@ -15,8 +15,8 @@ from sqlmodel import Session, SQLModel, create_engine, select
 
 from app import auth, book_service, scheduler, service
 from app.config import settings
-from app.models import Book, Card, Concept, IngestionSection, User
-from app.routers.study_routes import topic
+from app.models import Book, Card, Concept, ConceptStatus, IngestionSection, User
+from app.routers.study_routes import TopicStatusIn, set_topic_status, topic, topics
 from app.routers.book_routes import retry_book
 from app.routers.book_routes import clear_chat
 
@@ -34,6 +34,40 @@ def user(session: Session, name: str) -> User:
 
 
 class OwnershipTests(unittest.TestCase):
+    def test_topic_completion_is_per_user_and_private_topics_remain_owner_scoped(self):
+        with memory_session() as session:
+            alice, bob = user(session, "alice"), user(session, "bob")
+            private = Concept(slug="alice-course", track="Inference Engineering", title="Serving",
+                              source="book", owner_user_id=alice.id)
+            session.add(private); session.commit(); session.refresh(private)
+
+            self.assertFalse(next(row for row in topics(alice, session) if row["id"] == private.id)["completed"])
+            self.assertEqual(set_topic_status(private.id, TopicStatusIn(completed=True), alice, session),
+                             {"ok": True, "completed": True})
+            self.assertTrue(next(row for row in topics(alice, session) if row["id"] == private.id)["completed"])
+            self.assertEqual(topics(bob, session), [])
+            with self.assertRaises(HTTPException) as caught:
+                set_topic_status(private.id, TopicStatusIn(completed=True), bob, session)
+            self.assertEqual(caught.exception.status_code, 404)
+            self.assertEqual(len(session.exec(select(ConceptStatus)).all()), 1)
+
+    def test_book_topic_detail_includes_ordered_previous_and_next_navigation(self):
+        with memory_session() as session:
+            alice = user(session, "alice")
+            book = Book(user_id=alice.id, title="Inference Engineering", original_filename="i.pdf",
+                        storage_path="x", sha256="nav")
+            session.add(book); session.commit(); session.refresh(book)
+            concepts = [Concept(slug=f"nav-{sequence}", track=book.title, title=f"Lesson {sequence}",
+                                source="book", book=book.title, book_id=book.id,
+                                owner_user_id=alice.id, sequence=sequence) for sequence in (1, 3, 5)]
+            session.add_all(concepts); session.commit()
+            for concept in concepts: session.refresh(concept)
+
+            middle = topic(concepts[1].id, alice, session)["book_navigation"]
+            self.assertEqual((middle["position"], middle["total"]), (2, 3))
+            self.assertEqual(middle["previous"]["id"], concepts[0].id)
+            self.assertEqual(middle["next"]["id"], concepts[2].id)
+
     def test_owned_concepts_never_sync_to_another_user(self):
         with memory_session() as session:
             alice, bob = user(session, "alice"), user(session, "bob")
