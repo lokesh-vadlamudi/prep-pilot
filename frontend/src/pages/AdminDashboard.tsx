@@ -102,7 +102,7 @@ export default function AdminDashboard() {
                     <span>{user.active_days} active · {user.login_days} login days</span>
                     <span>Last active: {when(user.last_active_at)}</span>
                   </td>
-                  <td data-label="Study"><strong>{user.progress.study_days} days</strong><span>{user.progress.current_streak}d current streak</span><span>Last progress: {when(user.progress.last_progress_at)}</span></td>
+                  <td data-label="Study"><strong>{user.progress.study_days} {user.progress.study_days === 1 ? "day" : "days"}</strong><span>{user.progress.current_streak}d current streak</span><span>Last progress: {when(user.progress.last_progress_at)}</span></td>
                   <td data-label="Coding"><strong>{user.progress.problems_solved} solved</strong><span>{user.progress.problems_attempted} attempted</span></td>
                   <td data-label="Reviews"><strong>{user.progress.reviews} answers</strong><span>{user.progress.accuracy == null ? "No accuracy yet" : `${Math.round(user.progress.accuracy * 100)}% accurate`}</span><span>{user.progress.cards_reviewed}/{user.progress.cards_total} cards reviewed</span></td>
                   <td data-label="Other progress"><strong>{user.progress.topics_completed} topics</strong><span>{user.progress.mocks_completed} mocks completed</span></td>
