@@ -3,7 +3,7 @@ import { api } from "../api";
 
 type Mode = "signin" | "register" | "setup";
 
-export default function Login({ onAuthed }: { onAuthed: (user: string) => void }) {
+export default function Login({ onAuthed }: { onAuthed: (session: { username: string; invite_code?: string; is_admin?: boolean }) => void }) {
   const [mode, setMode] = useState<Mode | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +39,7 @@ export default function Login({ onAuthed }: { onAuthed: (user: string) => void }
         if (!r.ok) throw new Error("Wrong username or password.");
       }
       const me = await api.me();
-      onAuthed(me.username);
+      onAuthed(me);
     } catch (e: any) {
       setErr(e.message || "Something went wrong.");
     } finally {

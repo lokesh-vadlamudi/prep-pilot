@@ -23,6 +23,16 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class LoginAudit(SQLModel, table=True):
+    """Privacy-minimal authentication/activity audit, capped at one event per user/day."""
+    __table_args__ = (UniqueConstraint("user_id", "event", "day", name="ux_login_audit_user_event_day"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    event: str = Field(index=True)  # login | active
+    day: date = Field(index=True)
+    occurred_at: datetime = Field(default_factory=utcnow, index=True)
+
+
 class Concept(SQLModel, table=True):
     """A single teachable idea (e.g. 'Consistent hashing', 'Two-pointer technique')."""
     id: Optional[int] = Field(default=None, primary_key=True)

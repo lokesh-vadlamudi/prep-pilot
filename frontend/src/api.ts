@@ -82,6 +82,7 @@ export const api = {
   register: (username: string, password: string, invite_code: string, level = "newgrad", lang = "python") =>
     fetch("/api/auth/register", { method: "POST", headers: json, body: JSON.stringify({ username, password, invite_code, level, lang }) }),
   logout: () => req("/api/auth/logout", { method: "POST" }),
+  adminAudit: (days = 30) => req(`/api/auth/audit?days=${days}`),
   health: (): Promise<{ ok: boolean; environment: string; release: string; scheduler_enabled: boolean }> =>
     req("/api/health"),
 
