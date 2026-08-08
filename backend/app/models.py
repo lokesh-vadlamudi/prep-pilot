@@ -41,6 +41,61 @@ class Concept(SQLModel, table=True):
     chapter: str = ""                           # chapter/section label
     sequence: int = 0                           # study order; 0 = legacy (studied after books)
     citation: str = ""                          # e.g. "Inference Engineering, Ch.1 (p25-30)"
+    owner_user_id: Optional[int] = Field(default=None, index=True, foreign_key="user.id")
+    book_id: Optional[int] = Field(default=None, index=True, foreign_key="book.id")
+
+
+class Book(SQLModel, table=True):
+    """A private, user-uploaded source document."""
+    __table_args__ = (UniqueConstraint("user_id", "sha256", name="ux_book_user_sha"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    title: str
+    original_filename: str
+    storage_path: str
+    sha256: str = Field(index=True)
+    mime_type: str = "application/pdf"
+    byte_size: int = 0
+    page_count: int = 0
+    status: str = Field(default="queued", index=True)
+    total_sections: int = 0
+    completed_sections: int = 0
+    error_code: str = ""
+    error_message: str = ""
+    activated: bool = False
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class IngestionSection(SQLModel, table=True):
+    """Persistent extraction/generation checkpoint for one bounded source section."""
+    __table_args__ = (UniqueConstraint("book_id", "ordinal", name="ux_section_book_ordinal"),)
+    id: Optional[int] = Field(default=None, primary_key=True)
+    book_id: int = Field(index=True, foreign_key="book.id")
+    ordinal: int
+    chapter: str
+    label: str
+    page_start: int
+    page_end: int
+    citation: str
+    extracted_text: str
+    content_hash: str
+    status: str = Field(default="pending", index=True)
+    attempt_count: int = 0
+    error_message: str = ""
+    concept_id: Optional[int] = Field(default=None, foreign_key="concept.id")
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class BookChatMessage(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    book_id: int = Field(index=True, foreign_key="book.id")
+    user_id: int = Field(index=True, foreign_key="user.id")
+    role: str
+    content: str
+    citations_json: str = "[]"
+    created_at: datetime = Field(default_factory=utcnow)
 
 
 class Card(SQLModel, table=True):

@@ -23,13 +23,16 @@ class Settings(BaseSettings):
     # Code new users must present to register. Auto-generated.
     invite_code: str = ""
 
-    # --- LLM brain (any ollama endpoint; set OLLAMA_URL in .env) ---
-    ollama_url: str = "http://localhost:11434"
+    # --- LLM brain (OpenAI-compatible API, served locally by vLLM) ---
+    llm_base_url: str = "http://100.127.76.17:8000/v1"
     model: str = "qwen3.6:35b"
     llm_timeout: float = 120.0
 
     # --- Storage ---
     database_url: str = f"sqlite:///{DATA_DIR / 'prep.db'}"
+    book_storage_dir: str = str(DATA_DIR / "books")
+    max_book_bytes: int = 50 * 1024 * 1024
+    max_book_pages: int = 500
 
     # --- Runtime environment ---
     environment: str = "production"      # production | development

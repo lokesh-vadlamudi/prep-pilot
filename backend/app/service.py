@@ -52,6 +52,7 @@ def sync_user_cards(session: Session, user: User) -> int:
     templates = session.exec(
         select(Card).join(Concept, Concept.id == Card.concept_id)
         .where(Card.user_id == None,  # noqa: E711
+               Concept.owner_user_id == None,  # noqa: E711
                Concept.audience.in_(audiences_for(user)))  # type: ignore[attr-defined]
     ).all()
     copied = 0
@@ -423,12 +424,18 @@ def current_streak(session: Session, user_id: int) -> int:
 def book_progress(session: Session, user_id: int) -> list[dict]:
     """Per-book study progress: sections seen vs total, and current chapter."""
     books = session.exec(
-        select(Concept.book).where(Concept.book != "").distinct()
+        select(Concept.book).where(
+            Concept.book != "",
+            (Concept.owner_user_id == None) | (Concept.owner_user_id == user_id),  # noqa: E711
+        ).distinct()
     ).all()
     out = []
     for book in sorted(books):
         concepts = session.exec(
-            select(Concept).where(Concept.book == book).order_by(Concept.sequence)
+            select(Concept).where(
+                Concept.book == book,
+                (Concept.owner_user_id == None) | (Concept.owner_user_id == user_id),  # noqa: E711
+            ).order_by(Concept.sequence)
         ).all()
         total = len(concepts)
         seen = 0
@@ -455,7 +462,9 @@ def book_progress(session: Session, user_id: int) -> list[dict]:
 
 
 def progress_stats(session: Session, user_id: int) -> dict:
-    total_concepts = session.exec(select(func.count()).select_from(Concept)).one()
+    total_concepts = session.exec(select(func.count()).select_from(Concept).where(
+        (Concept.owner_user_id == None) | (Concept.owner_user_id == user_id)  # noqa: E711
+    )).one()
     total_cards = session.exec(
         select(func.count()).select_from(Card).where(Card.user_id == user_id)).one()
     introduced = session.exec(

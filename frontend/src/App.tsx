@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { api } from "./api";
 import Login from "./pages/Login";
@@ -10,9 +10,69 @@ import Mock from "./pages/Mock";
 import Ask from "./pages/Ask";
 import Progress from "./pages/Progress";
 import FlightPlan from "./pages/FlightPlan";
+import MakeMeLearn from "./pages/MakeMeLearn";
 
 // Heavy (CodeMirror) — only loaded when opening a problem to solve.
 const Solve = lazy(() => import("./pages/Solve"));
+
+const THEME_KEY = "pp-theme";
+
+function initialTheme(): "light" | "dark" {
+  try {
+    const stored = localStorage.getItem(THEME_KEY);
+    if (stored === "dark" || stored === "light") return stored;
+  } catch { /* ignore */ }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+// ── Theme provider (centralized state) ────────────────────────────
+
+export function useTheme() {
+  const [theme, setTheme] = useState<"light" | "dark">(initialTheme);
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
+
+  useEffect(() => {
+    // Apply theme attribute and browser chrome colors on mount and every change.
+    const t = themeRef.current;
+    document.documentElement.setAttribute("data-theme", t);
+    document.documentElement.style.colorScheme = t;
+    const meta = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
+    if (meta) {
+      meta.content = t === "dark" ? "#0c1626" : "#F2F6FA";
+    }
+  }, [theme]);
+
+  // Persist user preference and listen for OS preference changes.
+  useEffect(() => {
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = (e: MediaQueryListEvent | MediaQueryList) => {
+      if (localStorage.getItem(THEME_KEY) === null) {
+        setTheme(e.matches ? "dark" : "light");
+      }
+    };
+    try {
+      mql.addEventListener("change", handler);
+    } catch {
+      // Safari fallback
+      mql.addListener(handler as any);
+    }
+    return () => {
+      try { mql.removeEventListener("change", handler); } catch {}
+      try { mql.removeListener(handler as any); } catch {}
+    };
+  }, []);
+
+  const toggle = () => {
+    const next = themeRef.current === "dark" ? "light" : "dark";
+    try { localStorage.setItem(THEME_KEY, next); } catch { /* ignore */ }
+    setTheme(next);
+  };
+
+  return { theme, toggle };
+}
+
+// ── App ───────────────────────────────────────────────────────────
 
 type Auth = { loading: boolean; authed: boolean; user: string; invite?: string };
 type Runtime = { environment: string; release: string };
@@ -20,6 +80,7 @@ type Runtime = { environment: string; release: string };
 export default function App() {
   const [auth, setAuth] = useState<Auth>({ loading: true, authed: false, user: "" });
   const [runtime, setRuntime] = useState<Runtime>({ environment: "production", release: "" });
+  const { theme, toggle } = useTheme();
 
   useEffect(() => {
     api.me().then((r) => setAuth({
@@ -44,7 +105,7 @@ export default function App() {
     <div className={isDev ? "environment-dev" : ""}>
       {isDev && <DevBanner release={runtime.release} />}
       <div className="shell">
-        <Rail user={auth.user} invite={auth.invite} runtime={runtime}
+        <Rail user={auth.user} invite={auth.invite} runtime={runtime} theme={theme} themeToggle={toggle}
               onLogout={() => setAuth({ loading: false, authed: false, user: "" })} />
         <div className="main">
           <Routes>
@@ -55,10 +116,11 @@ export default function App() {
             <Route path="/mock" element={<Mock />} />
             <Route path="/problems" element={<Problems />} />
             <Route path="/problems/:id/solve" element={
-              <Suspense fallback={<div className="loading">loading editor</div>}><Solve /></Suspense>
+              <Suspense fallback={<div className="loading">loading editor</div>}><Solve theme={theme} /></Suspense>
             } />
             <Route path="/ask" element={<Ask />} />
             <Route path="/progress" element={<Progress />} />
+            <Route path="/make-me-learn" element={<MakeMeLearn />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
@@ -71,8 +133,8 @@ function DevBanner({ release }: { release: string }) {
   return <div className="dev-banner">Development preview · {release || "local"} · isolated test data</div>;
 }
 
-function Rail({ user, invite, runtime, onLogout }: {
-  user: string; invite?: string; runtime: Runtime; onLogout: () => void;
+function Rail({ user, invite, runtime, theme, themeToggle, onLogout }: {
+  user: string; invite?: string; runtime: Runtime; theme: string; themeToggle: () => void; onLogout: () => void;
 }) {
   const nav = useNavigate();
   const [brain, setBrain] = useState<{ online: boolean; model: string }>({ online: false, model: "" });
@@ -91,6 +153,7 @@ function Rail({ user, invite, runtime, onLogout }: {
     { to: "/topics", label: "Syllabus", hint: "topics" },
     { to: "/ask", label: "Ask the tutor", hint: "q&a" },
     { to: "/progress", label: "Flight log", hint: "progress" },
+    { to: "/make-me-learn", label: "Make me learn", hint: "books" },
   ];
 
   async function logout() {
@@ -104,6 +167,17 @@ function Rail({ user, invite, runtime, onLogout }: {
       <div className="brand">
         <span className="logo">Prep<b>Pilot</b></span>
         <span className="tag">{runtime.environment === "development" ? "DEV" : runtime.release || "v0.1"}</span>
+        <button
+          className="theme-toggle"
+          onClick={themeToggle}
+          aria-pressed={theme === "dark"}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={theme === "dark" ? "Light mode" : "Dark mode"}
+        >
+          <span className="theme-icon-light" aria-hidden>☀</span>
+          <span className="theme-icon-dark" aria-hidden>☾</span>
+          <span className="theme-label">{theme === "dark" ? "Dark" : "Light"}</span>
+        </button>
       </div>
       {links.map((l) => (
         <NavLink key={l.to} to={l.to} end={l.to === "/"} className={({ isActive }) => "navlink" + (isActive ? " active" : "")}>

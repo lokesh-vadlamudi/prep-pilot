@@ -91,6 +91,17 @@ export const api = {
     req("/api/learn-next/diagnose", { method: "POST" }),
   roadmap: () => req("/api/roadmap"),
   books: () => req("/api/books"),
+  book: (id: number) => req(`/api/books/${id}`),
+  uploadBook: (file: File) => {
+    const body = new FormData(); body.append("file", file);
+    return req("/api/books", { method: "POST", body });
+  },
+  activateBook: (id: number) => req(`/api/books/${id}/activate`, { method: "POST" }),
+  retryBook: (id: number) => req(`/api/books/${id}/retry`, { method: "POST" }),
+  bookChat: (id: number, question: string, scope = "book", section_id?: number) =>
+    req(`/api/books/${id}/chat`, { method: "POST", headers: json, body: JSON.stringify({ question, scope, section_id }) }),
+  bookChatHistory: (id: number) => req(`/api/books/${id}/chat`),
+  clearBookChat: (id: number) => req(`/api/books/${id}/chat`, { method: "DELETE" }),
   card: (id: number) => req(`/api/card/${id}`),
   submit: (body: { card_id: number; user_answer?: string; self_grade?: number }): Promise<SubmitResult> =>
     req("/api/submit", { method: "POST", headers: json, body: JSON.stringify(body) }),
