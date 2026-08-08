@@ -125,7 +125,9 @@ def login_audit(days: int = 30, user: User = auth.RequireUser,
         progress_times.extend(entry.last_touched for entry in own_problems if entry.last_touched)
         progress_times.extend(entry.completed_at for entry in own_topics if entry.completed_at)
         progress_times.extend(entry.ended_at for entry in own_mocks if entry.ended_at)
-        progress_times.extend(datetime.combine(entry.day, time.max) for entry in own_daylogs)
+        # A DayLog stores only a calendar date. Use its start rather than inventing
+        # a precise (and potentially future) end-of-day activity timestamp.
+        progress_times.extend(datetime.combine(entry.day, time.min) for entry in own_daylogs)
 
         study_dates = {entry.day for entry in own_daylogs}
         streak = 0
