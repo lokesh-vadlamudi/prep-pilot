@@ -128,7 +128,7 @@ export default function TopicDetail() {
         <p>This lesson is marked complete and every question has been scheduled for its next review.</p>
         <div className="topic-result-actions">
           <button className="btn ghost" onClick={() => { setQuizIndex(0); setQuizResults([]); }}>Retry quiz</button>
-          <button className="btn ghost" onClick={() => setQuizIndex(null)}>Review lesson</button>
+          <button className="btn ghost" onClick={() => { setQuizIndex(null); window.scrollTo({ top: 0, left: 0, behavior: "smooth" }); }}>Review lesson</button>
           {nav?.next ? <Link className="btn primary" to={`/topics/${nav.next.id}`}>Next lesson →</Link> : <Link className="btn primary" to={nav ? "/make-me-learn" : "/topics"}>Finish →</Link>}
         </div>
       </section>}
