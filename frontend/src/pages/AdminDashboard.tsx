@@ -62,7 +62,7 @@ export default function AdminDashboard() {
         <div>
           <div className="eyebrow">Admin monitor</div>
           <h1>User activity</h1>
-          <p>Account-level engagement and learning progress. No answers, transcripts, IP addresses, or browser data.</p>
+          <p>Monitor account activity and learning progress across PrepPilot.</p>
         </div>
         <label className="admin-window">Window
           <select value={days} onChange={(event) => setDays(Number(event.target.value))}>
