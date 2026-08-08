@@ -166,6 +166,7 @@ export default function Solve({ theme }: { theme: "light" | "dark" }) {
               <CodeMirror
                 value={code}
                 height="380px"
+                theme={theme === "dark" ? oneDark : "light"}
                 extensions={theme === "dark" ? [langExt(lang), oneDark] : [langExt(lang)]}
                 onChange={setCode}
               />
