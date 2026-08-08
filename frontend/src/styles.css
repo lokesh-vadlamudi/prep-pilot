@@ -1244,7 +1244,7 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .admin-table th { background: var(--paper-2); color: var(--faint); font: 600 10px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; }
 .admin-table th, .admin-table td { padding: 14px 15px; border-bottom: 1px solid var(--hairline-soft); vertical-align: top; }
 .admin-table tbody tr:last-child td { border-bottom: 0; }
-.admin-table tbody tr:hover { background: var(--warm-tint); }
+.admin-table tbody tr:hover { background: var(--paper-2); }
 .admin-table td { color: var(--muted); font-size: 12px; }
 .admin-table td strong, .admin-table td span { display: block; }
 .admin-table td strong { color: var(--ink); font-size: 13px; margin-bottom: 4px; }
