@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import unittest
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import HTTPException, Response
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from app import auth
-from app.models import LoginAudit, User
+from app.models import (Attempt, Card, Concept, ConceptStatus, DayLog,
+                        LoginAudit, MockSession, Problem, ProblemStatus, User)
 from app.routers.auth_routes import LoginIn, login, login_audit, record_login_audit
 
 
@@ -60,6 +61,40 @@ class LoginAuditTests(unittest.TestCase):
             row = next(item for item in summary["users"] if item["username"] == "learner")
             self.assertEqual((row["login_days"], row["active_days"]), (1, 1))
             self.assertEqual(row["recent_active_dates"], [str(date.today())])
+
+    def test_admin_summary_includes_progress_without_sensitive_content(self):
+        with memory_session() as session:
+            admin = User(username="admin", password_hash="secret", is_admin=True)
+            learner = User(username="learner", password_hash="hidden", level="newgrad")
+            session.add(admin); session.add(learner); session.commit(); session.refresh(admin); session.refresh(learner)
+            concept = Concept(slug="queues", track="DSA", title="Queues")
+            problem = Problem(slug="two-sum", title="Two Sum", category="Array")
+            session.add(concept); session.add(problem); session.commit(); session.refresh(concept); session.refresh(problem)
+            card = Card(user_id=learner.id, concept_id=concept.id, prompt="private prompt", last_reviewed=datetime.utcnow())
+            session.add(card); session.commit(); session.refresh(card)
+            session.add(Attempt(user_id=learner.id, card_id=card.id, concept_id=concept.id,
+                                correct=True, user_answer="private answer"))
+            session.add(DayLog(user_id=learner.id, day=date.today(), coding_solved=1))
+            session.add(ProblemStatus(user_id=learner.id, problem_id=problem.id, status="solved"))
+            session.add(ConceptStatus(user_id=learner.id, concept_id=concept.id, completed=True,
+                                      completed_at=datetime.utcnow()))
+            session.add(MockSession(user_id=learner.id, status="done", transcript_json='[{"private": true}]',
+                                    ended_at=datetime.utcnow()))
+            session.commit()
+
+            row = next(item for item in login_audit(30, admin, session)["users"]
+                       if item["username"] == "learner")
+            self.assertEqual(row["level"], "newgrad")
+            self.assertEqual(row["progress"]["study_days"], 1)
+            self.assertEqual(row["progress"]["current_streak"], 1)
+            self.assertEqual(row["progress"]["reviews"], 1)
+            self.assertEqual(row["progress"]["accuracy"], 1.0)
+            self.assertEqual(row["progress"]["problems_solved"], 1)
+            self.assertEqual(row["progress"]["topics_completed"], 1)
+            self.assertEqual(row["progress"]["mocks_completed"], 1)
+            self.assertEqual(row["progress"]["cards_reviewed"], 1)
+            self.assertNotIn("password_hash", row)
+            self.assertNotIn("user_answer", str(row))
 
 
 if __name__ == "__main__":

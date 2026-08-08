@@ -11,6 +11,7 @@ import Ask from "./pages/Ask";
 import Progress from "./pages/Progress";
 import FlightPlan from "./pages/FlightPlan";
 import MakeMeLearn from "./pages/MakeMeLearn";
+import AdminDashboard from "./pages/AdminDashboard";
 
 // Heavy (CodeMirror) — only loaded when opening a problem to solve.
 const Solve = lazy(() => import("./pages/Solve"));
@@ -74,7 +75,7 @@ export function useTheme() {
 
 // ── App ───────────────────────────────────────────────────────────
 
-type Auth = { loading: boolean; authed: boolean; user: string; invite?: string };
+type Auth = { loading: boolean; authed: boolean; user: string; invite?: string; isAdmin?: boolean };
 type Runtime = { environment: string; release: string };
 
 export default function App() {
@@ -85,6 +86,7 @@ export default function App() {
   useEffect(() => {
     api.me().then((r) => setAuth({
       loading: false, authed: r.authenticated, user: r.username || "", invite: r.invite_code,
+      isAdmin: Boolean(r.is_admin),
     }));
     api.health().then((r) => setRuntime({ environment: r.environment, release: r.release })).catch(() => {});
   }, []);
@@ -97,7 +99,13 @@ export default function App() {
     return (
       <div className={isDev ? "environment-dev" : ""}>
         {isDev && <DevBanner release={runtime.release} />}
-        <Login onAuthed={(user) => setAuth({ loading: false, authed: true, user })} />
+        <Login onAuthed={(session) => setAuth({
+          loading: false,
+          authed: true,
+          user: session.username,
+          invite: session.invite_code,
+          isAdmin: Boolean(session.is_admin),
+        })} />
       </div>
     );
 
@@ -105,7 +113,7 @@ export default function App() {
     <div className={isDev ? "environment-dev" : ""}>
       {isDev && <DevBanner release={runtime.release} />}
       <div className="shell">
-        <Rail user={auth.user} invite={auth.invite} runtime={runtime} theme={theme} themeToggle={toggle}
+        <Rail user={auth.user} invite={auth.invite} isAdmin={Boolean(auth.isAdmin)} runtime={runtime} theme={theme} themeToggle={toggle}
               onLogout={() => setAuth({ loading: false, authed: false, user: "" })} />
         <div className="main">
           <Routes>
@@ -121,6 +129,7 @@ export default function App() {
             <Route path="/ask" element={<Ask />} />
             <Route path="/progress" element={<Progress />} />
             <Route path="/make-me-learn" element={<MakeMeLearn />} />
+            <Route path="/admin" element={auth.isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
@@ -133,8 +142,8 @@ function DevBanner({ release }: { release: string }) {
   return <div className="dev-banner">Development preview · {release || "local"} · isolated test data</div>;
 }
 
-function Rail({ user, invite, runtime, theme, themeToggle, onLogout }: {
-  user: string; invite?: string; runtime: Runtime; theme: string; themeToggle: () => void; onLogout: () => void;
+function Rail({ user, invite, isAdmin, runtime, theme, themeToggle, onLogout }: {
+  user: string; invite?: string; isAdmin: boolean; runtime: Runtime; theme: string; themeToggle: () => void; onLogout: () => void;
 }) {
   const nav = useNavigate();
   const [brain, setBrain] = useState<{ online: boolean; model: string }>({ online: false, model: "" });
@@ -154,6 +163,7 @@ function Rail({ user, invite, runtime, theme, themeToggle, onLogout }: {
     { to: "/ask", label: "Ask the tutor", hint: "q&a" },
     { to: "/progress", label: "Flight log", hint: "progress" },
     { to: "/make-me-learn", label: "Make me learn", hint: "books" },
+    ...(isAdmin ? [{ to: "/admin", label: "Admin monitor", hint: "users" }] : []),
   ];
 
   async function logout() {
