@@ -5,8 +5,10 @@ import { python } from "@codemirror/lang-python";
 import { javascript } from "@codemirror/lang-javascript";
 import { StreamLanguage } from "@codemirror/language";
 import { go } from "@codemirror/legacy-modes/mode/go";
+import { oneDark } from "@codemirror/theme-one-dark";
 import Markdown from "../components/Markdown";
 import { api, RunResult, diffClass } from "../api";
+import { useTheme } from "../App";
 
 type Msg = { role: "user" | "assistant"; content: string };
 type Lang = "python" | "javascript" | "go";
@@ -21,6 +23,7 @@ const langExt = (l: Lang) =>
 export default function Solve() {
   const { id } = useParams();
   const pid = Number(id);
+  const { theme } = useTheme();
   const [problem, setProblem] = useState<any>(null);
   const [lang, setLang] = useState<Lang>("python");
   const [code, setCode] = useState("");
@@ -165,7 +168,7 @@ export default function Solve() {
               <CodeMirror
                 value={code}
                 height="380px"
-                extensions={[langExt(lang)]}
+                extensions={theme === "dark" ? [langExt(lang), oneDark] : [langExt(lang)]}
                 onChange={setCode}
               />
             )}

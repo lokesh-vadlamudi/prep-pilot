@@ -815,6 +815,7 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .solve-head { margin-bottom: 18px; }
 .solve-head h1 { font-family: var(--display); text-transform: uppercase; letter-spacing: 0.02em; }
 .solve-grid { display: grid; grid-template-columns: 1fr 380px; gap: 18px; align-items: start; }
+.solve-main { min-width: 0; }
 
 .editor-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 10px; }
 .lang-tabs { display: flex; gap: 6px; }
@@ -822,6 +823,7 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .editor-wrap .cm-editor { font-size: 13.5px; }
 .editor-wrap .cm-content { font-family: var(--mono); }
 .editor-wrap .cm-focused { outline: none; }
+.editor-wrap .cm-scroller { overflow-x: auto; }
 
 .cases { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .case { font-family: var(--mono); font-size: 12.5px; padding: 7px 10px; border-radius: 6px; background: var(--paper-2); display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; }
