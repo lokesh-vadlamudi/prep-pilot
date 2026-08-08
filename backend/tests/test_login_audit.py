@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from fastapi import HTTPException, Response
 from sqlalchemy.pool import StaticPool
@@ -95,6 +95,19 @@ class LoginAuditTests(unittest.TestCase):
             self.assertEqual(row["progress"]["cards_reviewed"], 1)
             self.assertNotIn("password_hash", row)
             self.assertNotIn("user_answer", str(row))
+
+    def test_daylog_progress_uses_non_future_start_of_day(self):
+        with memory_session() as session:
+            admin = User(username="admin", password_hash="x", is_admin=True)
+            learner = User(username="learner", password_hash="x")
+            session.add(admin); session.add(learner); session.commit(); session.refresh(admin); session.refresh(learner)
+            session.add(DayLog(user_id=learner.id, day=date.today(), coding_solved=1))
+            session.commit()
+
+            row = next(item for item in login_audit(30, admin, session)["users"]
+                       if item["username"] == "learner")
+            self.assertEqual(row["progress"]["last_progress_at"],
+                             datetime.combine(date.today(), time.min))
 
 
 if __name__ == "__main__":
