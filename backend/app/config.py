@@ -25,7 +25,9 @@ class Settings(BaseSettings):
 
     # --- LLM brain (OpenAI-compatible API, served locally by vLLM) ---
     llm_base_url: str = "http://100.127.76.17:8000/v1"
-    model: str = "qwen3.6:35b"
+    # This must exactly match an ID served by the DGX `/v1/models` endpoint.
+    # Colon-style Ollama names are interpreted as model/adapter requests by vLLM.
+    model: str = "qwen3.8-27b"
     llm_timeout: float = 120.0
 
     # --- Storage ---

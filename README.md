@@ -9,7 +9,7 @@
 An adaptive interview-prep cockpit that turns daily learning evidence into an
 explainable **Learn Next** plan. It combines spaced repetition, NeetCode 150,
 mock interviews, a structured roadmap, and a local **DGX** tutor
-(`qwen3.6:35b`) in one self-hosted workflow.
+(`qwen3.8-27b`) in one self-hosted workflow.
 
 <p align="center">
   <img src="docs/preflight.jpg" alt="Daily pre-flight dashboard" width="49%">
@@ -33,7 +33,7 @@ mock interviews, a structured roadmap, and a local **DGX** tutor
 ```
 Browser ──HTTPS (Tailscale Serve :10000)──▶ Mac mini
                                              └─ FastAPI + SQLite (uvicorn :8778, LaunchAgent)
-                                                   └─ HTTP ──▶ DGX ollama (qwen3.6:35b) @ $OLLAMA_URL
+                                                   └─ HTTP ──▶ DGX vLLM (qwen3.8-27b) @ $OLLAMA_URL
 ```
 - **Backend:** FastAPI + SQLModel/SQLite, Python 3.12 via `uv`. `backend/app/`
 - **Frontend:** React + Vite + TS, built to `frontend/dist`, served by FastAPI.

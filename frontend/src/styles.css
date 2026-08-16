@@ -857,6 +857,9 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .editor-wrap .cm-content { font-family: var(--mono); }
 .editor-wrap .cm-focused { outline: none; }
 .editor-wrap .cm-scroller { overflow-x: auto; }
+.editor-wrap .starter-error { padding: 20px; font-family: var(--mono); font-size: 13px; line-height: 1.5; color: var(--status-stderr-text); background: var(--status-stderr-bg); }
+.editor-wrap .starter-error p { margin: 0; }
+.editor-wrap .starter-error .btn { margin-top: 12px; }
 
 .cases { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .case { font-family: var(--mono); font-size: 12.5px; padding: 7px 10px; border-radius: 6px; background: var(--paper-2); display: flex; gap: 12px; flex-wrap: wrap; align-items: baseline; }
