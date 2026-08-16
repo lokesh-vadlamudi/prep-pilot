@@ -1,4 +1,4 @@
-"""Client for the DGX vLLM OpenAI-compatible API (qwen3.6:35b)."""
+"""Client for the DGX vLLM OpenAI-compatible API (qwen3.8-27b)."""
 from __future__ import annotations
 
 import json

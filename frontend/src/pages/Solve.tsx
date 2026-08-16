@@ -26,6 +26,9 @@ export default function Solve({ theme }: { theme: "light" | "dark" }) {
   const [lang, setLang] = useState<Lang>("python");
   const [code, setCode] = useState("");
   const [starterLoading, setStarterLoading] = useState(true);
+  const [starterError, setStarterError] = useState<string | null>(null);
+  const [starterRetry, setStarterRetry] = useState(0);
+  const starterSeq = useRef(0);
   const [result, setResult] = useState<RunResult | null>(null);
   const [running, setRunning] = useState(false);
 
@@ -45,13 +48,23 @@ export default function Solve({ theme }: { theme: "light" | "dark" }) {
   useEffect(() => { api.problem(pid).then(setProblem); }, [pid]);
 
   useEffect(() => {
+    const seq = ++starterSeq.current;
     setStarterLoading(true);
+    setStarterError(null);
     setResult(null);
     api.starter(pid, lang).then((r) => {
+      if (seq !== starterSeq.current) return;
       setCode(r.starter_code);
       setStarterLoading(false);
-    }).catch(() => setStarterLoading(false));
-  }, [pid, lang]);
+    }).catch((error: unknown) => {
+      if (seq !== starterSeq.current) return;
+      const status = error instanceof Error && /^\d{3}$/.test(error.message)
+        ? ` (HTTP ${error.message})`
+        : "";
+      setStarterError(`PrepPilot couldn't load starter code${status}. Retry in a moment; if it keeps failing, check the DGX model route.`);
+      setStarterLoading(false);
+    });
+  }, [pid, lang, starterRetry]);
 
   useEffect(() => { chatEnd.current?.scrollIntoView({ behavior: "smooth" }); }, [chat, mentorBusy]);
 
@@ -154,7 +167,7 @@ export default function Solve({ theme }: { theme: "light" | "dark" }) {
                 </button>
               ))}
             </div>
-            <button className="btn" onClick={run} disabled={running || starterLoading}>
+            <button className="btn" onClick={run} disabled={running || starterLoading || starterError !== null}>
               {running ? "Running…" : "▶ Run tests"}
             </button>
           </div>
@@ -162,6 +175,11 @@ export default function Solve({ theme }: { theme: "light" | "dark" }) {
           <div className="editor-wrap">
             {starterLoading ? (
               <div className="loading" style={{ padding: 20 }}>the DGX brain is preparing tests & starter code</div>
+            ) : starterError ? (
+              <div className="starter-error" role="alert">
+                <p>{starterError}</p>
+                <button className="btn" onClick={() => setStarterRetry((attempt) => attempt + 1)}>↻ Retry starter load</button>
+              </div>
             ) : (
               <CodeMirror
                 value={code}
