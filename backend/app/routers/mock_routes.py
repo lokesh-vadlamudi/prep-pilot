@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from ..auth import RequireUser
@@ -31,9 +31,9 @@ def _owned(session: Session, sid: int, user: User) -> MockSession:
 
 class StartIn(BaseModel):
     kind: str = "coding"
-    topic: str = ""
+    topic: str = Field(default="", max_length=200)
     difficulty: str = "senior"
-    duration_min: int = 40
+    duration_min: int = Field(default=40, ge=5, le=180)
 
 
 @router.post("/start")
@@ -55,7 +55,7 @@ async def start(body: StartIn, user: User = RequireUser, session: Session = Depe
 
 
 class ReplyIn(BaseModel):
-    message: str
+    message: str = Field(max_length=4000)
 
 
 @router.post("/{sid}/reply")

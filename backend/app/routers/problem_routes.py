@@ -5,7 +5,7 @@ import json
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session, select, func
 
 from ..auth import RequireUser
@@ -141,7 +141,7 @@ async def get_approach(pid: int, session: Session = Depends(get_session)):
 class StatusIn(BaseModel):
     status: str | None = None          # todo | attempted | solved
     confidence: int | None = None      # 0..3
-    notes: str | None = None
+    notes: str | None = Field(default=None, max_length=4000)
 
 
 @router.post("/{pid}/status")
@@ -172,7 +172,7 @@ def set_status(pid: int, body: StatusIn, user: User = RequireUser,
 
 
 class CoachIn(BaseModel):
-    plan: str
+    plan: str = Field(max_length=4000)
 
 
 @router.post("/{pid}/coach")
@@ -272,7 +272,7 @@ async def starter(pid: int, language: str = "python", session: Session = Depends
 
 class RunIn(BaseModel):
     language: str = "python"
-    code: str
+    code: str = Field(max_length=50000)
 
 
 @router.post("/{pid}/run")
@@ -320,11 +320,11 @@ async def run(pid: int, body: RunIn, user: User = RequireUser,
 
 class MentorIn(BaseModel):
     language: str = "python"
-    code: str = ""
+    code: str = Field(default="", max_length=50000)
     mode: str = "chat"                 # chat | review | explain
-    message: str = ""
-    test_summary: str = ""
-    history: list[dict] = []
+    message: str = Field(default="", max_length=4000)
+    test_summary: str = Field(default="", max_length=2000)
+    history: list[dict] = Field(default_factory=list, max_length=20)
 
 
 @router.post("/{pid}/mentor")

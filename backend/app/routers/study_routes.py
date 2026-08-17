@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from ..auth import RequireUser
@@ -46,8 +46,9 @@ def card_detail(card_id: int, user: User = RequireUser, session: Session = Depen
 
 class SubmitIn(BaseModel):
     card_id: int
-    user_answer: str = ""      # chosen text (mcq) or written answer (free/code)
-    self_grade: int | None = None  # optional manual SM-2 grade for mcq/self-rated
+    user_answer: str = Field(default="", max_length=10000)  # chosen text (mcq) or written answer (free/code)
+    # Optional manual SM-2 grade for mcq/self-rated; clamped to the SM-2 scale.
+    self_grade: int | None = Field(default=None, ge=0, le=5)
 
 
 @router.post("/submit")

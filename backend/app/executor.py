@@ -3,8 +3,10 @@
 Defense in depth for running user + AI-generated test code on the host:
   1. Hard wall-clock timeout (kills runaway loops).
   2. POSIX resource limits (CPU seconds, file size, process count).
-  3. macOS `sandbox-exec` profile that DENIES all network and restricts writes
-     to the throwaway work dir. Reads are allowed (interpreters need many files).
+  3. macOS `sandbox-exec` profile that DENIES all network, restricts writes to
+     the throwaway work dir, and denies reads of the app's own secrets
+     (.env, database, uploaded books). Other reads are allowed — interpreters
+     need to read their stdlib/binary files.
 
 This is a personal, single-user, auth-gated tool — not a hostile multi-tenant
 runner — but the above stops the realistic failure modes (infinite loops,
@@ -21,6 +23,8 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+
+from .config import BASE_DIR, DATA_DIR, settings
 
 RESULT_MARKER = "PREPPILOT_RESULT:"
 OUTPUTS_MARKER = "PREPPILOT_OUTPUTS:"
@@ -121,8 +125,26 @@ _SANDBOX_PROFILE = """(version 1)
 (allow file-read*)
 (allow file-write* (subpath "{work}") (subpath "{work_raw}") (subpath "/private/tmp") (subpath "/tmp")
     (literal "/dev/null") (literal "/dev/urandom") (literal "/dev/random"))
+(deny file-read* (literal "{env_file}") (subpath "{data_dir}") (subpath "{books_dir}"))
 (deny network*)
 """
+# Read-deny note: sandbox rules are last-match-wins, so the file-read* denial
+# above shadows the blanket allow for the app's secrets (.env / data / books).
+# Interpreter stdlib/.venv files live elsewhere and stay readable.
+
+
+def _secret_paths() -> dict[str, str]:
+    """Absolute paths the sandbox must not be able to read (app secrets).
+
+    .env (holds SECRET_KEY/INVITE_CODE/etc.) and the data dir (prep.db +
+    uploaded books). We deny the .env *file* and the data dir only, so the
+    interpreter can still read its own stdlib / .venv / source.
+    """
+    return {
+        "env_file": str((BASE_DIR / ".env").resolve()),
+        "data_dir": str(DATA_DIR.resolve()),
+        "books_dir": str(Path(settings.book_storage_dir).resolve()),
+    }
 
 
 def _preexec() -> None:
@@ -169,7 +191,7 @@ def run_code(language: str, source: str, *, timeout: float = 6.0, sandbox: bool 
         # macOS canonicalizes /var/folders -> /private/var/folders; sandbox matches
         # the resolved path, so allow the realpath (plus the raw path for safety).
         real_work = os.path.realpath(workdir)
-        profile = _SANDBOX_PROFILE.format(work=real_work, work_raw=workdir)
+        profile = _SANDBOX_PROFILE.format(work=real_work, work_raw=workdir, **_secret_paths())
         cmd = ["sandbox-exec", "-p", profile] + cmd
 
     env = {"PATH": "/usr/bin:/bin", "HOME": workdir, "TMPDIR": workdir}
