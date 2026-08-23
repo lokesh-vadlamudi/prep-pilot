@@ -9,6 +9,7 @@ from sqlmodel import Session, select
 
 from .. import auth, service
 from ..db import get_session
+from ..ratelimit import require_login_rate, require_register_rate
 from ..models import (Attempt, Card, ConceptStatus, DayLog, LoginAudit,
                       MockSession, ProblemStatus, Settings, User)
 
@@ -31,7 +32,7 @@ class LoginIn(BaseModel):
     password: str
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(require_login_rate)])
 def login(body: LoginIn, response: Response, session: Session = Depends(get_session)):
     user = auth.verify_login(session, body.username.strip(), body.password)
     if not user:
@@ -49,7 +50,7 @@ class RegisterIn(BaseModel):
     lang: str = "python"         # preferred language for examples
 
 
-@router.post("/register")
+@router.post("/register", dependencies=[Depends(require_register_rate)])
 def register(body: RegisterIn, response: Response, session: Session = Depends(get_session)):
     if not auth.ensure_invite_code() or body.invite_code.strip() != auth.ensure_invite_code():
         raise HTTPException(403, "Bad invite code")

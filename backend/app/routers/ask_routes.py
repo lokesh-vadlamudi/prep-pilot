@@ -1,8 +1,8 @@
 """Free-form 'ask the tutor' + on-demand content generation."""
 from __future__ import annotations
 
-from fastapi import APIRouter
-from pydantic import BaseModel
+from fastapi import APIRouter, Query
+from pydantic import BaseModel, Field
 
 from ..auth import RequireUser
 from ..models import User
@@ -12,9 +12,9 @@ router = APIRouter(prefix="/api", tags=["ask"], dependencies=[RequireUser])
 
 
 class AskIn(BaseModel):
-    question: str
-    context: str = ""
-    history: list[dict] = []
+    question: str = Field(max_length=4000)
+    context: str = Field(default="", max_length=2000)
+    history: list[dict] = Field(default_factory=list, max_length=20)
 
 
 @router.post("/ask")
@@ -25,8 +25,11 @@ async def ask(body: AskIn, user: User = RequireUser):
 
 
 @router.post("/generate-now")
-async def generate_now(per_track: int = 1, user: User = RequireUser):
-    """Manually trigger content generation, authored for the requesting user's level."""
+async def generate_now(per_track: int = Query(1, ge=1, le=5), user: User = RequireUser):
+    """Manually trigger content generation, authored for the requesting user's level.
+
+    Capped at 5 per track (20 LLM generations max) so a manual trigger can't
+    be used to DoS the DGX brain or flood the content bank."""
     added = await scheduler.generate_new_concepts(per_track=per_track, audience=user.level)
     return {"added": added}
 

@@ -5,7 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Response
+from fastapi import Depends, FastAPI, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -15,6 +15,7 @@ from .config import settings, BASE_DIR
 from .db import engine, init_db
 from .content.seed import seed_database, seed_problems
 from .scheduler import start_scheduler
+from .ratelimit import require_setup_rate
 from . import auth
 from .routers import auth_routes, study_routes, ask_routes, problem_routes, mock_routes, roadmap_routes, book_routes
 
@@ -69,7 +70,7 @@ def needs_setup():
     return {"needs_setup": _no_users(), "username": settings.username}
 
 
-@app.post("/api/setup")
+@app.post("/api/setup", dependencies=[Depends(require_setup_rate)])
 def setup(body: SetupIn, response: Response):
     from .models import Settings as UserSettings, User
     if not _no_users():
@@ -104,13 +105,16 @@ def health():
 # ---- Serve the built React app (SPA fallback) ----
 if FRONTEND_DIST.exists():
     app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+    _dist_root = FRONTEND_DIST.resolve()
 
     @app.get("/{full_path:path}")
     def spa(full_path: str):
-        candidate = FRONTEND_DIST / full_path
-        if full_path and candidate.is_file():
+        # Containment: reject any path that escapes the frontend build dir
+        # (`..` segments survive percent-decoding, so check the resolved path).
+        candidate = (_dist_root / full_path).resolve()
+        if full_path and candidate.is_file() and candidate.is_relative_to(_dist_root):
             return FileResponse(candidate)
-        return FileResponse(FRONTEND_DIST / "index.html")
+        return FileResponse(_dist_root / "index.html")
 else:
     @app.get("/")
     def no_frontend():
