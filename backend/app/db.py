@@ -45,7 +45,10 @@ _ADD_COLUMNS = {
     "attempt": [("user_id", "INTEGER")],
     "mocksession": [("user_id", "INTEGER")],
     "problemstatus": [("user_id", "INTEGER")],
-    "settings": [("user_id", "INTEGER")],
+    "settings": [
+        ("user_id", "INTEGER"),
+        ("daily_application_target", "INTEGER DEFAULT 5"),
+    ],
 }
 
 

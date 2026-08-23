@@ -27,6 +27,7 @@ mock interviews, a structured roadmap, and a local **DGX** tutor
 - **Self-updating** — a nightly job authors fresh, stack-relevant concepts (Go / Python / TS / React / cloud / Terraform). Also on demand from the Syllabus page.
 - **Ask the tutor** — free-form Q&A and system-design coaching.
 - **Flight log** — accuracy, per-track mastery, 14-day activity.
+- **Job search tracker** — manually log applications, set a daily target, manage the pipeline, and surface due follow-ups without scraping job boards.
 - **Multi-user accounts** — invite-code registration with isolated progress, settings, reviews, and problem status.
 
 ## Architecture

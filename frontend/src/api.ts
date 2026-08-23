@@ -72,6 +72,31 @@ export type SubmitResult = {
   next_review_days: number;
 };
 
+export type JobStatus = "saved" | "applied" | "interview" | "offer" | "rejected" | "withdrawn";
+export type JobApplication = {
+  id: number;
+  company: string;
+  role: string;
+  job_url: string;
+  location: string;
+  status: JobStatus;
+  applied_date: string | null;
+  follow_up_date: string | null;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+export type JobsDashboard = {
+  date: string;
+  daily_target: number;
+  applied_today: number;
+  remaining_today: number;
+  target_met: boolean;
+  follow_ups_due: JobApplication[];
+  counts: Record<JobStatus, number>;
+  jobs: JobApplication[];
+};
+
 export const api = {
   needsSetup: () => req("/api/needs-setup"),
   setup: (password: string, username = "") =>
@@ -137,6 +162,16 @@ export const api = {
   targetStatus: () => req("/api/problems/target/status"),
   setTarget: (body: { daily_problem_target?: number; goal_total?: number; goal_date?: string }) =>
     req("/api/problems/target", { method: "POST", headers: json, body: JSON.stringify(body) }),
+
+  // Manual job search tracker
+  jobs: (): Promise<JobsDashboard> => req("/api/jobs"),
+  addJob: (body: Partial<JobApplication> & { company: string; role: string }) =>
+    req("/api/jobs", { method: "POST", headers: json, body: JSON.stringify(body) }),
+  updateJob: (id: number, body: Partial<JobApplication>) =>
+    req(`/api/jobs/${id}`, { method: "PATCH", headers: json, body: JSON.stringify(body) }),
+  deleteJob: (id: number) => req(`/api/jobs/${id}`, { method: "DELETE" }),
+  setJobTarget: (daily_target: number) =>
+    req("/api/jobs/target/daily", { method: "PUT", headers: json, body: JSON.stringify({ daily_target }) }),
 
   // Mock interviews
   mockStart: (body: { kind: string; topic?: string; duration_min?: number }) =>

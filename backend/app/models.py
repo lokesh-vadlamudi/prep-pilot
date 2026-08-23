@@ -217,8 +217,25 @@ class Settings(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: Optional[int] = Field(default=None, index=True, foreign_key="user.id")
     daily_problem_target: int = 2
+    daily_application_target: int = 5
     goal_total: int = 150
     goal_date: Optional[date] = None
+
+
+class JobApplication(SQLModel, table=True):
+    """A manually tracked job lead or application owned by one user."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    company: str = Field(index=True)
+    role: str
+    job_url: str = ""
+    location: str = ""
+    status: str = Field(default="saved", index=True)
+    applied_date: Optional[date] = Field(default=None, index=True)
+    follow_up_date: Optional[date] = Field(default=None, index=True)
+    notes: str = ""
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow, index=True)
 
 
 class ProblemStatus(SQLModel, table=True):

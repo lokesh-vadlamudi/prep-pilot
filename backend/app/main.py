@@ -16,7 +16,7 @@ from .db import engine, init_db
 from .content.seed import seed_database, seed_problems
 from .scheduler import start_scheduler
 from . import auth
-from .routers import auth_routes, study_routes, ask_routes, problem_routes, mock_routes, roadmap_routes, book_routes
+from .routers import auth_routes, study_routes, ask_routes, problem_routes, mock_routes, roadmap_routes, book_routes, job_routes
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("prep")
@@ -49,6 +49,7 @@ app.include_router(problem_routes.router)
 app.include_router(mock_routes.router)
 app.include_router(roadmap_routes.router)
 app.include_router(book_routes.router)
+app.include_router(job_routes.router)
 
 
 # ---- First-run setup (only allowed while no account exists) ----
