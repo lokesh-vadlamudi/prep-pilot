@@ -295,7 +295,7 @@
 .job-filters button.on { background: var(--filter-active-bg); border-color: var(--filter-active-bg); color: var(--filter-active-fg); }
 .job-filters button.on b { color: inherit; }
 .job-list { display: grid; }
-.job-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, 300px); gap: 24px; padding: 20px 24px; border-bottom: 1px solid var(--hairline-soft); }
+.job-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, 440px); gap: 24px; padding: 20px 24px; border-bottom: 1px solid var(--hairline-soft); }
 .job-row:last-child { border-bottom: 0; }
 .job-row:hover { background: var(--paper-2); }
 .job-company { color: var(--course-deep); font: 600 11px var(--mono); letter-spacing: .09em; text-transform: uppercase; }
@@ -305,7 +305,7 @@
 .job-meta span { color: var(--faint); font: 10.5px var(--mono); padding-right: 8px; border-right: 1px solid var(--hairline); }
 .job-meta span:last-child { border-right: 0; }
 .job-meta .late { color: var(--caution); font-weight: 600; }
-.job-controls { display: grid; grid-template-columns: 1fr 1.25fr; gap: 10px; align-content: start; }
+.job-controls { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(150px, 1.25fr) auto; gap: 10px; align-items: end; align-content: start; }
 .job-status { font: 600 12px var(--mono); text-transform: uppercase; height: 39px; }
 .status-saved { color: var(--muted); }
 .status-applied { color: var(--data); }
@@ -314,9 +314,9 @@
 .status-rejected, .status-withdrawn { color: var(--faint); }
 .job-controls > label { gap: 4px; }
 .job-controls input { padding: 7px 8px; height: 39px; }
-.job-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
-.job-actions .btn { padding: 7px 12px; font-size: 11px; text-decoration: none; }
-.job-delete { width: 32px; height: 32px; border: 1px solid var(--hairline); border-radius: 7px; background: transparent; color: var(--faint); font-size: 20px; }
+.job-actions { display: flex; justify-content: flex-start; align-items: center; gap: 8px; min-height: 39px; }
+.job-actions .btn { height: 39px; display: inline-flex; align-items: center; padding: 7px 12px; font-size: 11px; text-decoration: none; white-space: nowrap; }
+.job-delete { width: 39px; height: 39px; flex: 0 0 39px; border: 1px solid var(--hairline); border-radius: 7px; background: transparent; color: var(--faint); font-size: 20px; }
 .job-delete:hover { border-color: var(--warn); color: var(--warn); background: var(--red-tint); }
 .jobs-empty { padding: 58px 24px; text-align: center; color: var(--muted); }
 .jobs-empty > span { display: block; color: var(--faint); font-size: 30px; }
