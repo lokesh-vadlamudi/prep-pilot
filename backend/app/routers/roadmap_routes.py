@@ -108,11 +108,7 @@ def brief(request: Request, session: Session = Depends(get_session)):
     app_settings = session.exec(
         select(Settings).where(Settings.user_id == owner.id)).first()
     target = app_settings.daily_problem_target if app_settings else 2
-    solved_today = session.exec(
-        select(func.count()).select_from(ProblemStatus)
-        .where(ProblemStatus.user_id == owner.id, ProblemStatus.status == "solved",
-               func.date(ProblemStatus.last_touched) == today.isoformat())
-    ).one()
+    solved_today = service.coding_solved_today(session, owner.id)
 
     week_ago = today - timedelta(days=6)
     logs = session.exec(select(DayLog).where(

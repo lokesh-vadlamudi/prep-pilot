@@ -56,7 +56,10 @@ export default function Problems() {
   const cats = ["All", ...data.category_order.filter((c) => data.problems.some((p) => p.category === c && inColl(p)))];
 
   async function cycleStatus(p: ProblemItem) {
-    const next = p.status === "solved" ? "todo" : p.status === "attempted" ? "solved" : "attempted";
+    // This control is presented as a completion checkbox. Running code already
+    // advances todo -> attempted, so a click here should complete the problem
+    // in one step and feed the daily coding target immediately.
+    const next = p.status === "solved" ? "todo" : "solved";
     const conf = next === "solved" ? Math.max(1, p.confidence) : p.confidence;
     await api.problemStatus(p.id, { status: next, confidence: conf });
     load();
@@ -108,7 +111,7 @@ export default function Problems() {
             <div className="prob-row">
               <button
                 className={"prob-check " + p.status}
-                title={p.status === "solved" ? "Solved — click to reset" : p.status === "attempted" ? "Attempted — click to mark solved" : "Click to mark attempted"}
+                title={p.status === "solved" ? "Solved — click to reset" : "Click to mark solved"}
                 onClick={() => cycleStatus(p)}
               >
                 {p.status === "solved" ? "✓" : p.status === "attempted" ? "•" : ""}
