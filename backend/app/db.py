@@ -44,7 +44,10 @@ _ADD_COLUMNS = {
     "card": [("user_id", "INTEGER")],
     "attempt": [("user_id", "INTEGER")],
     "mocksession": [("user_id", "INTEGER")],
-    "problemstatus": [("user_id", "INTEGER")],
+    "problemstatus": [
+        ("user_id", "INTEGER"),
+        ("solved_date", "DATE"),
+    ],
     "settings": [
         ("user_id", "INTEGER"),
         ("daily_application_target", "INTEGER DEFAULT 5"),
@@ -100,10 +103,11 @@ def _rebuild_unique_indexes(conn) -> None:
             "CREATE TABLE problemstatus (id INTEGER NOT NULL PRIMARY KEY, "
             "problem_id INTEGER NOT NULL, status VARCHAR NOT NULL, confidence INTEGER NOT NULL, "
             "notes VARCHAR NOT NULL, times_reviewed INTEGER NOT NULL, last_touched DATETIME, "
-            "revisit_date DATE, user_id INTEGER, "
+            "solved_date DATE, revisit_date DATE, user_id INTEGER, "
             "CONSTRAINT ux_status_user_problem UNIQUE (user_id, problem_id))",
-            "id, problem_id, status, confidence, notes, times_reviewed, last_touched, revisit_date, user_id",
+            "id, problem_id, status, confidence, notes, times_reviewed, last_touched, solved_date, revisit_date, user_id",
             ["CREATE INDEX IF NOT EXISTS ix_problemstatus_problem_id ON problemstatus (problem_id)",
+             "CREATE INDEX IF NOT EXISTS ix_problemstatus_solved_date ON problemstatus (solved_date)",
              "CREATE INDEX IF NOT EXISTS ix_problemstatus_user_id ON problemstatus (user_id)"],
         ),
     }

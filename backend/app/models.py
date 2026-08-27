@@ -249,6 +249,7 @@ class ProblemStatus(SQLModel, table=True):
     notes: str = ""
     times_reviewed: int = 0
     last_touched: Optional[datetime] = None
+    solved_date: Optional[date] = Field(default=None, index=True)
     # spaced revision: when this solved problem should be resurfaced
     revisit_date: Optional[date] = None
 

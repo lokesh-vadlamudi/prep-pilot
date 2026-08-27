@@ -152,6 +152,7 @@ def set_status(pid: int, body: StatusIn, user: User = RequireUser,
         raise HTTPException(404, "Problem not found")
     st = _status_for(session, user.id, pid)
     was_solved = st.status == "solved"
+    solved_date = st.solved_date
     if body.status is not None:
         st.status = body.status
     if body.confidence is not None:
@@ -164,7 +165,15 @@ def set_status(pid: int, body: StatusIn, user: User = RequireUser,
         st.revisit_date = date.today() + timedelta(days=_REVISIT.get(st.confidence, 7))
         if not was_solved:
             # First time solved today → count toward the daily ritual / streak.
+            st.solved_date = date.today()
             service.record_coding_solve(session, user.id)
+    elif was_solved:
+        # Resetting a problem solved today must also reset today's target. The
+        # explicit local solve date prevents an old solve from subtracting an
+        # unrelated problem completed today.
+        if solved_date == date.today():
+            service.remove_coding_solve(session, user.id)
+        st.solved_date = None
     session.add(st)
     session.commit()
     return {"ok": True, "status": st.status, "confidence": st.confidence,
@@ -362,11 +371,7 @@ class TargetIn(BaseModel):
 def target_status(user: User = RequireUser, session: Session = Depends(get_session)):
     s = _get_settings(session, user.id)
     today = date.today()
-    solved_today = session.exec(
-        select(func.count()).select_from(ProblemStatus)
-        .where(ProblemStatus.user_id == user.id, ProblemStatus.status == "solved",
-               func.date(ProblemStatus.last_touched) == today.isoformat())
-    ).one()
+    solved_today = service.coding_solved_today(session, user.id)
     total_solved = session.exec(
         select(func.count()).select_from(ProblemStatus)
         .where(ProblemStatus.user_id == user.id, ProblemStatus.status == "solved")).one()

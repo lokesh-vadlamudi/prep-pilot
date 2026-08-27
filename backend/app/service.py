@@ -403,6 +403,32 @@ def record_coding_solve(session: Session, user_id: int) -> None:
     session.commit()
 
 
+def remove_coding_solve(session: Session, user_id: int) -> None:
+    """Undo one solve from today's target after its checkbox is reset."""
+    log = session.exec(
+        select(DayLog).where(DayLog.user_id == user_id, DayLog.day == date.today())
+    ).first()
+    if not log:
+        return
+    log.coding_solved = max(0, log.coding_solved - 1)
+    session.add(log)
+    session.commit()
+
+
+def coding_solved_today(session: Session, user_id: int) -> int:
+    """Return today's solve count using the app's local calendar-day log.
+
+    ProblemStatus.last_touched is a naive UTC timestamp, so deriving a local
+    daily total from it drops evening solves in time zones west of UTC.
+    DayLog is written with date.today() at solve time and is the canonical
+    source for daily coding progress.
+    """
+    log = session.exec(
+        select(DayLog).where(DayLog.user_id == user_id, DayLog.day == date.today())
+    ).first()
+    return log.coding_solved if log else 0
+
+
 def current_streak(session: Session, user_id: int) -> int:
     """Consecutive days (ending today or yesterday) with any activity: a review OR a coding solve."""
     logs = session.exec(
