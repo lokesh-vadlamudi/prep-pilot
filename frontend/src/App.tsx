@@ -12,6 +12,7 @@ import Progress from "./pages/Progress";
 import FlightPlan from "./pages/FlightPlan";
 import MakeMeLearn from "./pages/MakeMeLearn";
 import AdminDashboard from "./pages/AdminDashboard";
+import Jobs from "./pages/Jobs";
 
 // Heavy (CodeMirror) — only loaded when opening a problem to solve.
 const Solve = lazy(() => import("./pages/Solve"));
@@ -128,6 +129,7 @@ export default function App() {
             } />
             <Route path="/ask" element={<Ask />} />
             <Route path="/progress" element={<Progress />} />
+            <Route path="/jobs" element={<Jobs />} />
             <Route path="/make-me-learn" element={<MakeMeLearn />} />
             <Route path="/admin" element={auth.isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" />} />
@@ -162,6 +164,7 @@ function Rail({ user, invite, isAdmin, runtime, theme, themeToggle, onLogout }: 
     { to: "/topics", label: "Syllabus", hint: "topics" },
     { to: "/ask", label: "Ask the tutor", hint: "q&a" },
     { to: "/progress", label: "Flight log", hint: "progress" },
+    { to: "/jobs", label: "Job search", hint: "applications" },
     { to: "/make-me-learn", label: "Make me learn", hint: "books" },
     ...(isAdmin ? [{ to: "/admin", label: "Admin monitor", hint: "users" }] : []),
   ];
