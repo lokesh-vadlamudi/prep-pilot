@@ -137,6 +137,15 @@ describe("Read a book", () => {
 
     expect(await screen.findByAltText("Page 2 of Inference Engineering")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open lesson →" })).toHaveAttribute("href", "/topics/41");
+
+    fireEvent.change(screen.getByPlaceholderText("Ask about page 2…"), {
+      target: { value: "What does this page explain?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    await waitFor(() => expect(api.bookChat).toHaveBeenCalledWith(
+      7, "What does this page explain?", "page", undefined, 2,
+    ));
   });
 
   it("handles an empty library plus successful and failed imports", async () => {

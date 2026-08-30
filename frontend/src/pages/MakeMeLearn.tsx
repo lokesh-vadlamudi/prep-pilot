@@ -253,7 +253,8 @@ export default function MakeMeLearn() {
     setQuestion(""); setAsking(true);
     setMessages((items) => [...items, { role: "user", content: q }]);
     try {
-      const response = await api.bookChat(book.id, q, scope, sectionId, scope === "page" ? page : undefined);
+      const scopedSectionId = scope === "chapter" || scope === "topic" ? sectionId : undefined;
+      const response = await api.bookChat(book.id, q, scope, scopedSectionId, scope === "page" ? page : undefined);
       if (activeRef.current?.id !== book.id) return;
       setMessages((items) => [...items, { role: "assistant", content: response.answer, citations: response.citations }]);
     } catch (caught) {
