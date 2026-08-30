@@ -9,16 +9,18 @@ vi.mock("../api", () => ({
   api: {
     books: vi.fn(), book: vi.fn(), bookChatHistory: vi.fn(), bookChat: vi.fn(),
     bookPageUrl: vi.fn((id: number, page: number) => `/api/books/${id}/pages/${page}`),
+    bookPage: vi.fn(),
     uploadBook: vi.fn(), activateBook: vi.fn(), retryBook: vi.fn(), clearBookChat: vi.fn(),
     bookReaderState: vi.fn(), saveBookProgress: vi.fn(), saveBookBookmark: vi.fn(),
-    deleteBookBookmark: vi.fn(), searchBook: vi.fn(),
+    deleteBookBookmark: vi.fn(), searchBook: vi.fn(), shareBook: vi.fn(),
   },
 }));
 
 const summary = {
   id: 7, title: "Inference Engineering", status: "partial", page_count: 3,
   total_sections: 1, completed_sections: 1, generated_lessons: 1, failed_sections: 0,
-  remaining_sections: 0, activated: true,
+  remaining_sections: 0, activated: true, access: "owner", is_owner: true,
+  shared_with_all: false,
 };
 const detail = {
   ...summary,
@@ -35,9 +37,16 @@ describe("Read a book", () => {
     vi.clearAllMocks();
     vi.stubGlobal("scrollTo", vi.fn());
     Element.prototype.scrollIntoView = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true, value: vi.fn(() => "blob:book-page"),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true, value: vi.fn(),
+    });
     vi.mocked(api.books).mockResolvedValue([summary] as any);
     vi.mocked(api.book).mockResolvedValue(detail as any);
     vi.mocked(api.bookChatHistory).mockResolvedValue([] as any);
+    vi.mocked(api.bookPage).mockResolvedValue(new Blob(["page"], { type: "image/png" }));
     vi.mocked(api.bookReaderState).mockResolvedValue({ book_id: 7, page: 1, progress_updated_at: null, bookmarks: [] } as any);
     vi.mocked(api.saveBookProgress).mockResolvedValue({ book_id: 7, page: 2, updated_at: "now" } as any);
     vi.mocked(api.saveBookBookmark).mockImplementation(async (_id, page, note) => ({ page, note, created_at: "now", updated_at: "now" } as any));
@@ -51,6 +60,10 @@ describe("Read a book", () => {
     vi.mocked(api.activateBook).mockResolvedValue({ activated: true } as any);
     vi.mocked(api.retryBook).mockResolvedValue({ queued: true } as any);
     vi.mocked(api.clearBookChat).mockResolvedValue({ deleted: 1 } as any);
+    vi.mocked(api.shareBook).mockImplementation(async (_id, shared) => ({
+      book_id: 7, access: "owner", is_owner: true, shared_with_all: shared,
+      updated_at: "now", changed: true,
+    } as any));
   });
 
   it("keeps the current page visible and sends that page with chat questions", async () => {
@@ -58,13 +71,13 @@ describe("Read a book", () => {
 
     expect(await screen.findByRole("heading", { name: "Read a book" })).toBeTruthy();
     expect(await screen.findByAltText("Page 1 of Inference Engineering")).toHaveAttribute(
-      "src", "/api/books/7/pages/1",
+      "src", "blob:book-page",
     );
     expect(screen.getByRole("heading", { name: "Ask page 1" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
     expect(await screen.findByAltText("Page 2 of Inference Engineering")).toHaveAttribute(
-      "src", "/api/books/7/pages/2",
+      "src", "blob:book-page",
     );
     expect(screen.getByRole("heading", { name: "Ask page 2" })).toBeTruthy();
 
@@ -76,6 +89,7 @@ describe("Read a book", () => {
     await waitFor(() => expect(api.bookChat).toHaveBeenCalledWith(
       7, "What does this page explain?", "page", undefined, 2,
     ));
+
     expect(await screen.findByText("Page two explains GPU execution.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Go to cited page 3" }));
     expect(await screen.findByAltText("Page 3 of Inference Engineering")).toBeTruthy();
@@ -146,6 +160,15 @@ describe("Read a book", () => {
     await waitFor(() => expect(api.bookChat).toHaveBeenCalledWith(
       7, "What does this page explain?", "page", undefined, 2,
     ));
+
+    fireEvent.change(screen.getByLabelText("Chat context"), { target: { value: "chapter" } });
+    fireEvent.change(screen.getByPlaceholderText("Ask a question grounded in this book…"), {
+      target: { value: "Summarize this chapter" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    await waitFor(() => expect(api.bookChat).toHaveBeenLastCalledWith(
+      7, "Summarize this chapter", "chapter", 11, undefined,
+    ));
   });
 
   it("handles an empty library plus successful and failed imports", async () => {
@@ -162,6 +185,300 @@ describe("Read a book", () => {
     vi.mocked(api.uploadBook).mockRejectedValueOnce(new Error("bad"));
     fireEvent.change(input, { target: { files: [new File(["bad"], "bad.pdf", { type: "application/pdf" })] } });
     expect(await screen.findByText(/Import failed/)).toBeTruthy();
+  });
+
+  it("lets only the owner share and unshare with an explicit confirmation", async () => {
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    await screen.findByAltText("Page 1 of Inference Engineering");
+
+    fireEvent.click(screen.getByRole("button", { name: "Share with all users" }));
+    expect(screen.getByText(/Every signed-in user can read, search, and chat with this book/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm sharing" }));
+    await waitFor(() => expect(api.shareBook).toHaveBeenCalledWith(7, true));
+    expect(await screen.findByText("Shared with everyone")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop sharing" }));
+    await waitFor(() => expect(api.shareBook).toHaveBeenLastCalledWith(7, false));
+    expect(await screen.findByText("Private")).toBeTruthy();
+  });
+
+  it("keeps the confirmed server state when sharing fails", async () => {
+    vi.mocked(api.shareBook).mockRejectedValueOnce({ detail: "Sharing is temporarily unavailable." });
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    await screen.findByAltText("Page 1 of Inference Engineering");
+
+    fireEvent.click(screen.getByRole("button", { name: "Share with all users" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm sharing" }));
+
+    expect(await screen.findByText("Sharing is temporarily unavailable.")).toBeTruthy();
+    expect(screen.getByText("Private")).toBeTruthy();
+    expect(screen.queryByText("Shared with everyone")).toBeNull();
+  });
+
+  it("ignores duplicate and stale sharing completions", async () => {
+    const second = { ...summary, id: 8, title: "Second Book", status: "ready" };
+    vi.mocked(api.books).mockResolvedValue([summary, second] as any);
+    vi.mocked(api.book).mockImplementation(async (id) => ({
+      ...detail, ...(id === 8 ? second : summary), sections: [],
+    }) as any);
+    vi.mocked(api.bookReaderState).mockImplementation(async (id) => ({
+      book_id: id, page: 1, progress_updated_at: null, bookmarks: [],
+    }) as any);
+    let resolveShare: ((value: any) => void) | undefined;
+    vi.mocked(api.shareBook).mockImplementationOnce(() => new Promise((resolve) => { resolveShare = resolve; }));
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    await screen.findByAltText("Page 1 of Inference Engineering");
+
+    fireEvent.click(screen.getByRole("button", { name: "Share with all users" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("button", { name: "Confirm sharing" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Share with all users" }));
+    const confirm = screen.getByRole("button", { name: "Confirm sharing" });
+    act(() => { confirm.click(); confirm.click(); });
+    expect(api.shareBook).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: /Second Book/ }));
+    await screen.findByAltText("Page 1 of Second Book");
+    await act(async () => { resolveShare?.({
+      book_id: 7, access: "owner", is_owner: true, shared_with_all: true,
+      updated_at: "now", changed: true,
+    }); });
+    expect(screen.getByText("Private")).toBeTruthy();
+    expect(screen.queryByText("Shared with everyone")).toBeNull();
+
+    let rejectShare: ((reason: unknown) => void) | undefined;
+    vi.mocked(api.shareBook).mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectShare = reject; }));
+    fireEvent.click(screen.getByRole("button", { name: "Share with all users" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm sharing" }));
+    fireEvent.click(screen.getByRole("button", { name: /Inference Engineering/ }));
+    await screen.findByAltText("Page 1 of Inference Engineering");
+    await act(async () => { rejectShare?.({ detail: "stale failure" }); });
+    expect(screen.queryByText("stale failure")).toBeNull();
+  });
+
+  it("shows a shared book as reader-only and hides owner lesson controls", async () => {
+    const shared = {
+      id: 8, title: "Shared Systems", page_count: 2, access: "shared",
+      is_owner: false, shared_with_all: true,
+    };
+    const sharedDetail = {
+      ...shared,
+      sections: [{ id: 21, chapter: "Serving", label: "Batching", citation: "page 2", page_start: 2, page_end: 2 }],
+    };
+    vi.mocked(api.books).mockResolvedValue([shared] as any);
+    vi.mocked(api.book).mockResolvedValue(sharedDetail as any);
+    vi.mocked(api.bookReaderState).mockResolvedValue({ book_id: 8, page: 1, progress_updated_at: null, bookmarks: [] } as any);
+
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    expect(await screen.findByAltText("Page 1 of Shared Systems")).toBeTruthy();
+    expect(screen.getAllByText("Shared with you").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Share with all users" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add lessons to syllabus" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry failed section" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Read page 2" }));
+    expect(screen.queryByRole("link", { name: "Open lesson →" })).toBeNull();
+    expect(screen.getByRole("option", { name: "Selected section" })).toBeTruthy();
+  });
+
+  it("exits a shared book immediately when page access is revoked", async () => {
+    const shared = {
+      id: 8, title: "Shared Systems", page_count: 2, access: "shared",
+      is_owner: false, shared_with_all: true,
+    };
+    const ownerBook = { ...summary, id: 9, title: "My Private Book", status: "ready" };
+    vi.mocked(api.books)
+      .mockResolvedValueOnce([shared, ownerBook] as any)
+      .mockResolvedValue([ownerBook] as any);
+    vi.mocked(api.book).mockImplementation(async (id) => (
+      id === 8 ? { ...shared, sections: [] } : { ...detail, ...ownerBook, sections: [] }
+    ) as any);
+    vi.mocked(api.bookReaderState).mockImplementation(async (id) => ({
+      book_id: id, page: 1, progress_updated_at: null, bookmarks: [],
+    }) as any);
+    vi.mocked(api.bookPage)
+      .mockResolvedValueOnce(new Blob(["shared"], { type: "image/png" }))
+      .mockRejectedValueOnce({ status: 404, detail: "Book not found" });
+
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    await screen.findByAltText("Page 1 of Shared Systems");
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+    expect(await screen.findByText("This book is no longer shared with you.")).toBeTruthy();
+    expect(await screen.findByAltText("Page 1 of My Private Book")).toBeTruthy();
+    expect(screen.queryByText("Shared Systems")).toBeNull();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:book-page");
+  });
+
+  it("drops a book revoked between listing and private-state loading", async () => {
+    const shared = {
+      id: 8, title: "Shared Systems", page_count: 2, access: "shared",
+      is_owner: false, shared_with_all: true,
+    };
+    const ownerBook = { ...summary, id: 9, title: "My Private Book", status: "ready" };
+    vi.mocked(api.books)
+      .mockResolvedValueOnce([shared, ownerBook] as any)
+      .mockResolvedValue([ownerBook] as any);
+    vi.mocked(api.book).mockImplementation(async (id) => (
+      id === 8 ? { ...shared, sections: [] } : { ...detail, ...ownerBook, sections: [] }
+    ) as any);
+    vi.mocked(api.bookReaderState)
+      .mockRejectedValueOnce({ status: 404, detail: "Book not found" })
+      .mockResolvedValue({ book_id: 9, page: 1, progress_updated_at: null, bookmarks: [] } as any);
+
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    expect(await screen.findByAltText("Page 1 of My Private Book")).toBeTruthy();
+    expect(screen.queryByText("Shared Systems")).toBeNull();
+  });
+
+  it("handles page transport failure and aborts an obsolete page request", async () => {
+    const second = { ...summary, id: 8, title: "Second Book", status: "ready" };
+    vi.mocked(api.books).mockResolvedValue([summary, second] as any);
+    vi.mocked(api.book).mockImplementation(async (id) => ({
+      ...detail, ...(id === 8 ? second : summary), sections: [],
+    }) as any);
+    vi.mocked(api.bookReaderState).mockImplementation(async (id) => ({
+      book_id: id, page: 1, progress_updated_at: null, bookmarks: [],
+    }) as any);
+    vi.mocked(api.bookPage).mockRejectedValueOnce(new Error("render offline"));
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+
+    expect(await screen.findByText("This page could not be rendered.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Retry page render" }));
+    await screen.findByAltText("Page 1 of Inference Engineering");
+
+    vi.mocked(api.bookPage).mockRejectedValueOnce({ status: 404, detail: "Page file missing" });
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(await screen.findByText("This page could not be rendered.")).toBeTruthy();
+    expect(screen.getAllByText("Inference Engineering").length).toBeGreaterThan(0);
+    expect(screen.queryByText("This book is no longer shared with you.")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry page render" }));
+    await screen.findByAltText("Page 2 of Inference Engineering");
+
+    vi.mocked(api.bookPage).mockImplementationOnce((_id, _page, signal) => new Promise((_resolve, reject) => {
+      signal?.addEventListener("abort", () => reject(new DOMException("stop", "AbortError")));
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous page" }));
+    await waitFor(() => expect(api.bookPage).toHaveBeenLastCalledWith(7, 1, expect.any(AbortSignal)));
+    fireEvent.click(screen.getByRole("button", { name: /Second Book/ }));
+    expect(await screen.findByAltText("Page 1 of Second Book")).toBeTruthy();
+    expect(screen.queryByText("This page could not be rendered.")).toBeNull();
+  });
+
+  it("recovers when progress discovers that a shared book was revoked", async () => {
+    const shared = {
+      id: 8, title: "Shared Systems", page_count: 2, access: "shared",
+      is_owner: false, shared_with_all: true,
+    };
+    const ownerBook = { ...summary, id: 9, title: "My Private Book", status: "ready" };
+    vi.mocked(api.books)
+      .mockResolvedValueOnce([shared, ownerBook] as any)
+      .mockResolvedValue([ownerBook] as any);
+    vi.mocked(api.book).mockImplementation(async (id) => (
+      id === 8 ? { ...shared, sections: [] } : { ...detail, ...ownerBook, sections: [] }
+    ) as any);
+    vi.mocked(api.bookReaderState).mockImplementation(async (id) => ({
+      book_id: id, page: 1, progress_updated_at: null, bookmarks: [],
+    }) as any);
+    vi.mocked(api.saveBookProgress).mockRejectedValueOnce({ status: 404, detail: "Book not found" });
+
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    await screen.findByAltText("Page 1 of Shared Systems");
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(await screen.findByAltText("Page 1 of My Private Book")).toBeTruthy();
+    expect(screen.getByText("This book is no longer shared with you.")).toBeTruthy();
+  });
+
+  it("preserves the current book when a chat 404 cannot be confirmed as revocation", async () => {
+    const shared = {
+      id: 8, title: "Shared Systems", page_count: 2, access: "shared",
+      is_owner: false, shared_with_all: true,
+    };
+    vi.mocked(api.books)
+      .mockResolvedValueOnce([shared] as any)
+      .mockRejectedValueOnce(new Error("library offline"));
+    vi.mocked(api.book).mockResolvedValue({ ...shared, sections: [] } as any);
+    vi.mocked(api.bookReaderState).mockResolvedValue({
+      book_id: 8, page: 1, progress_updated_at: null, bookmarks: [],
+    } as any);
+    vi.mocked(api.bookChat).mockRejectedValueOnce({ status: 404, detail: "Book not found" });
+
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    await screen.findByAltText("Page 1 of Shared Systems");
+    fireEvent.click(screen.getByRole("button", { name: "What are the key ideas?" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    expect(await screen.findByText(/retry when DGX is available/i)).toBeTruthy();
+    expect(screen.getByAltText("Page 1 of Shared Systems")).toBeTruthy();
+    expect(screen.queryByText("This book is no longer shared with you.")).toBeNull();
+  });
+
+  it("finishes revocation even when loading the fallback book fails", async () => {
+    const shared = {
+      id: 8, title: "Shared Systems", page_count: 2, access: "shared",
+      is_owner: false, shared_with_all: true,
+    };
+    const ownerBook = { ...summary, id: 9, title: "Fallback Book", status: "ready" };
+    vi.mocked(api.books)
+      .mockResolvedValueOnce([shared, ownerBook] as any)
+      .mockResolvedValueOnce([ownerBook] as any)
+      .mockRejectedValueOnce(new Error("fallback offline"));
+    vi.mocked(api.book).mockResolvedValue({ ...shared, sections: [] } as any);
+    vi.mocked(api.bookReaderState).mockResolvedValue({
+      book_id: 8, page: 1, progress_updated_at: null, bookmarks: [],
+    } as any);
+    vi.mocked(api.bookChat).mockRejectedValueOnce({ status: 404, detail: "Book not found" });
+
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    await screen.findByAltText("Page 1 of Shared Systems");
+    fireEvent.click(screen.getByRole("button", { name: "What are the key ideas?" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    expect(await screen.findByText("This book is no longer shared with you.")).toBeTruthy();
+    expect(screen.queryByText("Shared Systems")).toBeNull();
+  });
+
+  it("uses search 404s to exit a confirmed-revoked shared book", async () => {
+    const shared = {
+      id: 8, title: "Shared Systems", page_count: 2, access: "shared",
+      is_owner: false, shared_with_all: true,
+    };
+    const ownerBook = { ...summary, id: 9, title: "Search Fallback", status: "ready" };
+    vi.mocked(api.books)
+      .mockResolvedValueOnce([shared, ownerBook] as any)
+      .mockResolvedValue([ownerBook] as any);
+    vi.mocked(api.book).mockImplementation(async (id) => (
+      id === 8 ? { ...shared, sections: [] } : { ...detail, ...ownerBook, sections: [] }
+    ) as any);
+    vi.mocked(api.bookReaderState).mockImplementation(async (id) => ({
+      book_id: id, page: 1, progress_updated_at: null, bookmarks: [],
+    }) as any);
+    vi.mocked(api.searchBook).mockRejectedValueOnce({ status: 404, detail: "Book not found" });
+
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    await screen.findByAltText("Page 1 of Shared Systems");
+    fireEvent.change(screen.getByLabelText("Search this book"), { target: { value: "revoked" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search book" }));
+    expect(await screen.findByAltText("Page 1 of Search Fallback")).toBeTruthy();
+    expect(screen.getByText("This book is no longer shared with you.")).toBeTruthy();
+  });
+
+  it("exits a revoked shared book when a private bookmark update fails", async () => {
+    const shared = {
+      id: 8, title: "Shared Systems", page_count: 2, access: "shared",
+      is_owner: false, shared_with_all: true,
+    };
+    vi.mocked(api.books)
+      .mockResolvedValueOnce([shared] as any)
+      .mockResolvedValueOnce([] as any);
+    vi.mocked(api.book).mockResolvedValue({ ...shared, sections: [] } as any);
+    vi.mocked(api.bookReaderState).mockResolvedValue({
+      book_id: 8, page: 1, progress_updated_at: null, bookmarks: [],
+    } as any);
+    vi.mocked(api.saveBookBookmark).mockRejectedValueOnce({ status: 404, detail: "Book not found" });
+
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    await screen.findByAltText("Page 1 of Shared Systems");
+    fireEvent.click(screen.getByRole("button", { name: "Save bookmark for page 1" }));
+
+    expect(await screen.findByText("This book is no longer shared with you.")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Your private library is empty" })).toBeTruthy();
   });
 
   it("keeps the selected book readable when resume state cannot be loaded", async () => {
@@ -450,6 +767,18 @@ describe("Read a book", () => {
     await act(async () => { resolveChat?.({ answer: "stale answer", citations: [] }); });
     expect(screen.queryByText("stale answer")).toBeNull();
     expect(screen.queryByRole("link", { name: "Open lesson →" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Inference Engineering/ }));
+    await screen.findByAltText("Page 1 of Inference Engineering");
+    let rejectChat: ((reason: unknown) => void) | undefined;
+    vi.mocked(api.bookChat).mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectChat = reject; }));
+    const firstBookQuestion = screen.getByPlaceholderText("Ask about page 1…");
+    fireEvent.change(firstBookQuestion, { target: { value: "stale revoked request" } });
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+    fireEvent.click(screen.getByRole("button", { name: /Second Book/ }));
+    await screen.findByAltText("Page 1 of Second Book");
+    await act(async () => { rejectChat?.({ status: 404, detail: "Book not found" }); });
+    expect(screen.queryByText("This book is no longer shared with you.")).toBeNull();
   });
 
   it("ignores stale bookmark mutations and permits books without generated sections", async () => {

@@ -1,17 +1,6 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type BookBookmark, type BookSearchResult } from "../api";
-
-type Section = {
-  id: number; chapter: string; label: string; citation: string; status: string;
-  page_start: number; page_end: number; concept_id?: number; topic_title?: string;
-  summary?: string; error_message?: string;
-};
-type Book = {
-  id: number; title: string; status: string; page_count: number; total_sections: number;
-  completed_sections: number; generated_lessons: number; failed_sections: number;
-  remaining_sections: number; activated: boolean; error_message?: string; sections?: Section[];
-};
+import { api, type Book, type BookBookmark, type BookSearchResult, type BookSection } from "../api";
 type Message = { role: string; content: string; citations?: unknown };
 type ChatScope = "page" | "book" | "chapter" | "topic";
 type Citation = { citation: string; page_start: number; page_end: number };
@@ -36,6 +25,10 @@ function failureText(error: unknown, fallback: string): string {
     return String((error as Record<string, unknown>).detail);
   }
   return fallback;
+}
+
+function isRevokedBook(error: unknown): boolean {
+  return !!error && typeof error === "object" && (error as Record<string, unknown>).status === 404;
 }
 
 function chatFailureText(error: unknown): string {
@@ -77,6 +70,7 @@ export default function MakeMeLearn() {
   const [pageLoading, setPageLoading] = useState(false);
   const [pageError, setPageError] = useState("");
   const [pageReload, setPageReload] = useState(0);
+  const [pageImageUrl, setPageImageUrl] = useState("");
   const [bookmarks, setBookmarks] = useState<BookBookmark[]>([]);
   const [bookmarkNote, setBookmarkNote] = useState("");
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
@@ -89,6 +83,9 @@ export default function MakeMeLearn() {
   const [clearing, setClearing] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [focusTextarea, setFocusTextarea] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [confirmingShare, setConfirmingShare] = useState(false);
+  const [shareError, setShareError] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
   const readerRef = useRef<HTMLElement>(null);
@@ -98,6 +95,7 @@ export default function MakeMeLearn() {
   const searchControllerRef = useRef<AbortController | null>(null);
   const searchTimerRef = useRef<number | null>(null);
   const resizingChatRef = useRef(false);
+  const sharingRef = useRef(false);
   const progressPendingRef = useRef<{ bookId: number; page: number } | null>(null);
   const progressSavingRef = useRef(false);
 
@@ -106,16 +104,35 @@ export default function MakeMeLearn() {
     const list = await api.books();
     if (token !== loadTokenRef.current) return;
     setBooks(list);
-    const id = selectId ?? activeRef.current?.id ?? list[0]?.id;
+    const preferredId = selectId ?? activeRef.current?.id;
+    const id = preferredId && list.some((book) => book.id === preferredId) ? preferredId : list[0]?.id;
     if (!id) {
       activeRef.current = null;
       setActive(null); setMessages([]); setBookmarks([]);
       return;
     }
-    const [detail, history, readerState] = await Promise.all([
-      api.book(id), api.bookChatHistory(id),
-      api.bookReaderState(id).catch(() => null),
-    ]);
+    let detail: Book;
+    let history: Message[];
+    let readerState: Awaited<ReturnType<typeof api.bookReaderState>> | null;
+    try {
+      const [loadedBook, loadedHistory, readerResult] = await Promise.all([
+        api.book(id), api.bookChatHistory(id),
+        api.bookReaderState(id).then((value) => ({ value })).catch((caught) => ({ caught })),
+      ]);
+      if ("caught" in readerResult && isRevokedBook(readerResult.caught)) throw readerResult.caught;
+      detail = loadedBook;
+      history = loadedHistory;
+      readerState = "value" in readerResult ? readerResult.value : null;
+    } catch (caught) {
+      if (!isRevokedBook(caught)) throw caught;
+      const remaining = (await api.books()).filter((book) => book.id !== id);
+      if (token !== loadTokenRef.current) return;
+      setBooks(remaining);
+      activeRef.current = null;
+      setActive(null); setMessages([]); setBookmarks([]);
+      if (remaining[0]) await refresh(remaining[0].id);
+      return;
+    }
     if (token !== loadTokenRef.current) return;
     activeRef.current = detail;
     setActive(detail); setMessages(history);
@@ -133,13 +150,31 @@ export default function MakeMeLearn() {
 
   useEffect(() => { refresh().catch(() => setError("Could not load your library.")); }, []);
   useEffect(() => {
-    if (!active || !["queued", "processing", "extracting"].includes(active.status)) return;
+    if (!active?.is_owner || !["queued", "processing", "extracting"].includes(active.status)) return;
     const timer = window.setInterval(() => refreshStatus(active.id).catch(() => {}), 4000);
     return () => clearInterval(timer);
-  }, [active?.id, active?.status]);
+  }, [active?.id, active?.is_owner, active?.is_owner ? active.status : undefined]);
   useEffect(() => {
-    if (!active) return;
-    setPageLoading(true); setPageError("");
+    if (!active) { setPageImageUrl(""); return; }
+    const bookId = active.id;
+    const controller = new AbortController();
+    let objectUrl = "";
+    setPageImageUrl(""); setPageLoading(true); setPageError("");
+    void api.bookPage(bookId, page, controller.signal).then((blob) => {
+      if (controller.signal.aborted || activeRef.current?.id !== bookId) return;
+      objectUrl = URL.createObjectURL(blob);
+      setPageImageUrl(objectUrl);
+    }).catch(async (caught) => {
+      if (caught instanceof DOMException && caught.name === "AbortError") return;
+      if (await recoverRevocation(caught, bookId)) return;
+      if (activeRef.current?.id === bookId) {
+        setPageLoading(false); setPageError("This page could not be rendered.");
+      }
+    });
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, [active?.id, page, pageReload]);
   useEffect(() => {
     const bookmark = bookmarks.find((item) => item.page === page);
@@ -166,7 +201,26 @@ export default function MakeMeLearn() {
     searchTimerRef.current = null; searchTokenRef.current += 1;
     setSearchQuery(""); setSearchResults([]); setSearchError(""); setSearchComplete(false); setSearching(false);
     setQuestion(""); setError(""); setPageError(""); setBookmarkError("");
+    setConfirmingShare(false); setShareError("");
     setMessages([]); setBookmarks([]); setBookmarkNote("");
+  }
+
+  async function recoverRevocation(caught: unknown, bookId: number): Promise<boolean> {
+    if (!isRevokedBook(caught)) return false;
+    if (!activeRef.current || activeRef.current.id !== bookId) return true;
+    let list: Book[];
+    try { list = await api.books(); }
+    catch { return false; }
+    if (!activeRef.current || activeRef.current.id !== bookId) return true;
+    if (list.some((book) => book.id === bookId)) return false;
+    setBooks(list);
+    activeRef.current = null; setActive(null); resetTransient();
+    if (list[0]) {
+      try { await refresh(list[0].id); }
+      catch { setBooks([]); }
+    }
+    setError("This book is no longer shared with you.");
+    return true;
   }
 
   async function selectBook(id: number) {
@@ -174,7 +228,9 @@ export default function MakeMeLearn() {
     activeRef.current = null; setActive(null);
     setPage(1); setZoom(100); setPageFit("width"); setSectionId(undefined); setScope("page"); resetTransient();
     try { await refresh(id); }
-    catch { setError("Could not load that book."); }
+    catch (caught) {
+      if (!(await recoverRevocation(caught, id))) setError("Could not load that book.");
+    }
   }
 
   async function upload(file?: File) {
@@ -197,7 +253,8 @@ export default function MakeMeLearn() {
         const next = progressPendingRef.current;
         progressPendingRef.current = null;
         try { await api.saveBookProgress(next.bookId, next.page); }
-        catch {
+        catch (caught) {
+          if (await recoverRevocation(caught, next.bookId)) continue;
           if (activeRef.current?.id === next.bookId) setError("Your page changed, but resume progress could not be saved. Try again.");
         }
       }
@@ -219,7 +276,9 @@ export default function MakeMeLearn() {
       const saved = await api.saveBookBookmark(book.id, page, bookmarkNote);
       if (activeRef.current?.id !== book.id) return;
       setBookmarks((items) => [...items.filter((item) => item.page !== page), saved].sort((a, b) => a.page - b.page));
-    } catch (caught) { setBookmarkError(failureText(caught, "Could not save this bookmark note.")); }
+    } catch (caught) {
+      if (!(await recoverRevocation(caught, book.id))) setBookmarkError(failureText(caught, "Could not save this bookmark note."));
+    }
     finally { setBookmarkBusy(false); }
   }
 
@@ -230,7 +289,9 @@ export default function MakeMeLearn() {
       await api.deleteBookBookmark(book.id, page);
       if (activeRef.current?.id !== book.id) return;
       setBookmarks((items) => items.filter((item) => item.page !== page)); setBookmarkNote("");
-    } catch (caught) { setBookmarkError(failureText(caught, "Could not remove this bookmark.")); }
+    } catch (caught) {
+      if (!(await recoverRevocation(caught, book.id))) setBookmarkError(failureText(caught, "Could not remove this bookmark."));
+    }
     finally { setBookmarkBusy(false); }
   }
 
@@ -250,6 +311,7 @@ export default function MakeMeLearn() {
         setSearchResults(response.results); setSearchComplete(true);
       } catch (caught) {
         if (caught instanceof DOMException && caught.name === "AbortError") return;
+        if (await recoverRevocation(caught, book.id)) return;
         if (token === searchTokenRef.current) setSearchError(failureText(caught, "Search could not be completed."));
       } finally { if (token === searchTokenRef.current) setSearching(false); }
     }, 120);
@@ -267,6 +329,7 @@ export default function MakeMeLearn() {
       if (activeRef.current?.id !== book.id) return;
       setMessages((items) => [...items, { role: "assistant", content: response.answer, citations: response.citations }]);
     } catch (caught) {
+      if (await recoverRevocation(caught, book.id)) return;
       if (activeRef.current?.id === book.id) setMessages((items) => [...items, { role: "assistant", content: chatFailureText(caught) }]);
     } finally { setAsking(false); }
   }
@@ -278,11 +341,33 @@ export default function MakeMeLearn() {
       await api.clearBookChat(book.id);
       if (activeRef.current?.id === book.id) setMessages([]);
       setFocusTextarea(true);
-    } catch { setError("Could not clear chat. Please try again."); }
+    } catch (caught) {
+      if (!(await recoverRevocation(caught, book.id))) setError("Could not clear chat. Please try again.");
+    }
     finally { setClearing(false); }
   }
 
-  function openSection(section: Section) {
+  async function updateSharing(sharedWithAll: boolean) {
+    const book = activeRef.current;
+    if (!book?.is_owner || sharingRef.current) return;
+    sharingRef.current = true;
+    setSharing(true); setShareError("");
+    try {
+      const result = await api.shareBook(book.id, sharedWithAll);
+      if (activeRef.current?.id !== book.id || !activeRef.current.is_owner) return;
+      const updated: Book = { ...activeRef.current, shared_with_all: result.shared_with_all };
+      activeRef.current = updated;
+      setActive(updated);
+      setBooks((items) => items.map((item) => item.id === updated.id ? { ...item, shared_with_all: result.shared_with_all } as Book : item));
+      setConfirmingShare(false);
+    } catch (caught) {
+      if (activeRef.current?.id === book.id && activeRef.current.is_owner) {
+        setShareError(failureText(caught, sharedWithAll ? "Could not share this book." : "Could not stop sharing this book."));
+      }
+    } finally { sharingRef.current = false; setSharing(false); }
+  }
+
+  function openSection(section: BookSection) {
     goToPage(section.page_start);
     setSectionId(section.id); setScope("page");
     readerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -298,7 +383,7 @@ export default function MakeMeLearn() {
       </header>
       {error && <div className="notice error" role="status">{error}</div>}
       {!books.length && <section className="panel book-empty"><h2>Your private library is empty</h2><p>Add a digitally readable PDF. Processing stays on the Mac mini and private DGX; OCR is not included yet.</p><p className="muted">Maximum 50 MB and 500 pages. Only upload material you have rights to process.</p></section>}
-      {!!books.length && <div className="book-picker" aria-label="Your books">{books.map((book) => <button className={active?.id === book.id ? "active" : ""} key={book.id} onClick={() => selectBook(book.id)}>{book.title}<small>{book.page_count} pages · {book.status}</small></button>)}</div>}
+      {!!books.length && <div className="book-picker" aria-label="Your books">{books.map((book) => <button className={active?.id === book.id ? "active" : ""} key={book.id} onClick={() => selectBook(book.id)}>{book.title}<small>{book.page_count} pages · {book.is_owner ? (book.shared_with_all ? "shared" : book.status) : "Shared with you"}</small></button>)}</div>}
 
       {active && <section className="panel book-reader" ref={readerRef} aria-label={`Reading ${active.title}`}>
         <div className="book-reader-toolbar">
@@ -317,7 +402,7 @@ export default function MakeMeLearn() {
         <div className="book-reader-surface">
           {pageLoading && !pageError && <span className="loading book-page-loading">rendering page</span>}
           {pageError && <div className="notice error">{pageError}<button className="btn" onClick={() => setPageReload((value) => value + 1)}>Retry page render</button></div>}
-          <img className={`book-page-image fit-${pageFit}`} key={`${active.id}-${page}-${pageReload}`} src={api.bookPageUrl(active.id, page)} alt={`Page ${page} of ${active.title}`} style={pageFit === "custom" ? { width: `${zoom}%` } : undefined} onLoad={() => setPageLoading(false)} onError={() => { setPageLoading(false); setPageError("This page could not be rendered."); }} />
+          {pageImageUrl && <img className={`book-page-image fit-${pageFit}`} key={`${active.id}-${page}-${pageReload}`} src={pageImageUrl} alt={`Page ${page} of ${active.title}`} style={pageFit === "custom" ? { width: `${zoom}%` } : undefined} onLoad={() => setPageLoading(false)} onError={() => { setPageLoading(false); setPageError("This page could not be rendered."); }} />}
         </div>
         <div className="book-companion-tools">
           <form className="book-search" onSubmit={(event) => { event.preventDefault(); submitSearch(); }}>
@@ -335,10 +420,17 @@ export default function MakeMeLearn() {
         </div>
       </section>}
 
-      {active && <section className="panel book-overview"><details><summary aria-label={`Book details for ${active.title}`}><span><span className="eyebrow">{active.status}</span><strong>{active.title}</strong><small>{active.page_count} pages · {active.generated_lessons} optional lessons ready{active.failed_sections ? ` · ${active.failed_sections} section needs retry` : ""}</small></span><span>Book details</span></summary><p>Generated lessons are optional; reading, search, bookmarks, and grounded page chat work independently.</p></details>
-        <div className="book-overview-actions">{!active.activated && ["ready", "partial"].includes(active.status) && <button className="btn" onClick={async () => { await api.activateBook(active.id); await refreshStatus(active.id); }}>Add lessons to syllabus</button>}
+      {active && <section className="panel book-overview"><details><summary aria-label={`Book details for ${active.title}`}><span><span className="eyebrow">{active.is_owner ? active.status : "Shared with you"}</span><strong>{active.title}</strong><small>{active.is_owner ? `${active.page_count} pages · ${active.generated_lessons} optional lessons ready${active.failed_sections ? ` · ${active.failed_sections} section needs retry` : ""}` : `${active.page_count} pages · shared reader access`}</small></span><span>Book details</span></summary><p>{active.is_owner ? "Generated lessons are optional; reading, search, bookmarks, and grounded page chat work independently." : "Your page, bookmarks, private notes, and DGX chat stay separate from every other reader."}</p></details>
+        {active.is_owner && <div className="book-overview-actions">
+          <span className={`book-sharing-badge ${active.shared_with_all ? "shared" : "private"}`}>{active.shared_with_all ? "Shared with everyone" : "Private"}</span>
+          {!active.activated && ["ready", "partial"].includes(active.status) && <button className="btn" onClick={async () => { await api.activateBook(active.id); await refreshStatus(active.id); }}>Add lessons to syllabus</button>}
           {active.status === "partial" && <button className="btn" onClick={async () => { await api.retryBook(active.id); await refreshStatus(active.id); }}>Retry failed section</button>}
-        </div>
+          {active.shared_with_all
+            ? <button className="btn" onClick={() => updateSharing(false)} disabled={sharing}>Stop sharing</button>
+            : <button className="btn" onClick={() => { setConfirmingShare(true); setShareError(""); }} disabled={sharing || !["ready", "partial"].includes(active.status)}>Share with all users</button>}
+        </div>}
+        {active.is_owner && confirmingShare && <div className="book-sharing-confirm" role="group" aria-label="Confirm sharing"><p>Every signed-in user can read, search, and chat with this book. Their progress, bookmarks, private notes, and chat history stay separate.</p><div><button className="btn primary" onClick={() => updateSharing(true)} disabled={sharing}>Confirm sharing</button><button className="btn" onClick={() => setConfirmingShare(false)} disabled={sharing}>Cancel</button></div></div>}
+        {shareError && <span className="notice error" role="status">{shareError}</span>}
       </section>}
     </div>
 
@@ -352,13 +444,13 @@ export default function MakeMeLearn() {
         {confirmingClear ? active ? <div className="clear-confirm"><span>Clear all messages for <em>{active.title}</em>?</span><div className="clear-confirm-actions"><button className="btn" ref={confirmBtnRef} onClick={clearChat} disabled={clearing || busy}>Clear</button><button className="btn" onClick={() => setConfirmingClear(false)} disabled={clearing || busy}>Cancel</button></div></div> : null : messages.length > 0 ? <button className="btn clear-chat-btn" ref={triggerRef} onClick={() => setConfirmingClear(true)} disabled={busy || clearing}>Clear chat</button> : null}
       </div>
       {!active ? <p className="muted">Add or select a book to begin.</p> : <>
-        <label className="book-chat-scope">Use context from<select aria-label="Chat context" value={scope} onChange={(event) => setScope(event.target.value as ChatScope)}><option value="page">Current page · {page}</option><option value="book">Whole book</option><option value="chapter" disabled={!sectionId}>Selected chapter</option><option value="topic" disabled={!sectionId}>Selected generated lesson</option></select></label>
+        <label className="book-chat-scope">Use context from<select aria-label="Chat context" value={scope} onChange={(event) => setScope(event.target.value as ChatScope)}><option value="page">Current page · {page}</option><option value="book">Whole book</option><option value="chapter" disabled={!sectionId}>Selected chapter</option><option value="topic" disabled={!sectionId}>{active.is_owner ? "Selected generated lesson" : "Selected section"}</option></select></label>
         <div className="chat-scroll" aria-live="polite">{messages.map((message, index) => <div className={`chat-msg ${message.role}`} key={index}><strong>{message.role === "user" ? "You" : "DGX"}</strong><p>{message.content}</p>{Array.isArray(message.citations) && message.citations.map((citation, citationIndex) => { const valid = validCitation(citation, active.page_count); return valid ? <button className="book-citation" key={citationIndex} onClick={() => goToPage(valid.page_start)} aria-label={`Go to cited page ${valid.page_start}`}>{valid.citation}</button> : <small key={citationIndex}>{citationText(citation)}</small>; })}</div>)}{asking && <span className="loading">reading</span>}</div>
         <div className="chat-prompts">{["Explain this page simply", "Quiz me on this page", "What are the key ideas?"].map((prompt) => <button key={prompt} onClick={() => setQuestion(prompt)}>{prompt}</button>)}</div>
         <div className="chat-input"><textarea value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) ask(); }} placeholder={scope === "page" ? `Ask about page ${page}…` : "Ask a question grounded in this book…"}/><button className="btn primary" onClick={ask} disabled={asking || !question.trim()}>Ask</button></div>
       </>}
     </aside>
 
-    {active && <section className="panel chapter-journey"><h2>Jump by section</h2><div className="topic-path">{active.sections?.map((section) => <div className={`topic-node ${section.status}`} key={section.id}><div><strong>{section.topic_title || section.label}</strong>{section.summary && <p>{section.summary}</p>}<small>{section.citation}</small></div><span>{section.status}</span><button className="btn" onClick={() => openSection(section)}>Read page {section.page_start}</button>{section.concept_id && <Link to={`/topics/${section.concept_id}`}>Open lesson →</Link>}</div>)}</div></section>}
+    {active && <section className="panel chapter-journey"><h2>Jump by section</h2><div className="topic-path">{active.sections?.map((section) => <div className={`topic-node${section.status ? ` ${section.status}` : ""}`} key={section.id}><div><strong>{section.topic_title || section.label}</strong>{section.summary && <p>{section.summary}</p>}<small>{section.citation}</small></div>{section.status && <span>{section.status}</span>}<button className="btn" onClick={() => openSection(section)}>Read page {section.page_start}</button>{active.is_owner && section.concept_id && <Link to={`/topics/${section.concept_id}`}>Open lesson →</Link>}</div>)}</div></section>}
   </div>;
 }

@@ -37,6 +37,32 @@ async function req(path: string, opts: RequestInit = {}) {
   return body;
 }
 
+async function reqBlob(path: string, opts: RequestInit = {}): Promise<Blob> {
+  let response: Response;
+  try {
+    response = await fetch(path, { credentials: "same-origin", ...opts });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    throw new ApiError(0, "offline", "PrepPilot could not reach the course service.", true);
+  }
+  if (!response.ok) {
+    const contentType = response.headers.get("content-type") || "";
+    const body = contentType.includes("application/json") ? await response.json() : await response.text();
+    const payload = typeof body === "object" && body ? body as Record<string, any> : {};
+    const failure = payload.error && typeof payload.error === "object" ? payload.error : payload;
+    const fallback = response.status === 401 ? "Your session expired." : `Request failed (${response.status}).`;
+    const detail = normalizeDetail(failure.detail ?? payload.detail, fallback);
+    const retryable = typeof failure.retryable === "boolean" ? failure.retryable : undefined;
+    throw new ApiError(
+      response.status,
+      failure.code || (response.status === 401 ? "unauthorized" : `http_${response.status}`),
+      detail,
+      retryable,
+    );
+  }
+  return response.blob();
+}
+
 function normalizeDetail(value: unknown, fallback: string): string {
   if (typeof value === "string" && value.trim()) return value;
   if (Array.isArray(value)) {
@@ -210,6 +236,86 @@ export type BookReaderState = {
 export type BookSearchResult = { page: number; snippet: string; match_count: number };
 export type BookSearchResponse = { query: string; results: BookSearchResult[]; truncated: boolean };
 
+export type BookSection = {
+  id: number; chapter: string; label: string; citation: string;
+  page_start: number; page_end: number; status?: string; concept_id?: number;
+  topic_title?: string; summary?: string; error_message?: string;
+};
+export type OwnerBook = {
+  id: number; title: string; page_count: number; access: "owner"; is_owner: true;
+  shared_with_all: boolean; status: string; total_sections: number; completed_sections: number;
+  generated_lessons: number; failed_sections: number; remaining_sections: number;
+  activated: boolean; error_code?: string; error_message?: string; sections?: BookSection[];
+};
+export type SharedBook = {
+  id: number; title: string; page_count: number; access: "shared"; is_owner: false;
+  shared_with_all: true; sections?: BookSection[];
+};
+export type Book = OwnerBook | SharedBook;
+export type BookSharingResult = {
+  book_id: number; access: "owner"; is_owner: true; shared_with_all: boolean;
+  updated_at: string; changed: boolean;
+};
+
+const SHARED_SUMMARY_KEYS = new Set([
+  "id", "title", "page_count", "access", "is_owner", "shared_with_all",
+]);
+const SHARED_DETAIL_KEYS = new Set([...SHARED_SUMMARY_KEYS, "sections"]);
+const SHARED_SECTION_KEYS = new Set([
+  "id", "chapter", "label", "page_start", "page_end", "citation",
+]);
+
+function integer(value: unknown, minimum = 0): value is number {
+  return Number.isInteger(value) && (value as number) >= minimum;
+}
+
+function decodeSharedSection(value: unknown): BookSection | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  if (Object.keys(item).some((key) => !SHARED_SECTION_KEYS.has(key))) return null;
+  if (!integer(item.id, 1) || typeof item.chapter !== "string" || typeof item.label !== "string"
+      || typeof item.citation !== "string" || !integer(item.page_start, 1)
+      || !integer(item.page_end, item.page_start as number)) return null;
+  return item as BookSection;
+}
+
+function decodeBook(value: unknown, detail: boolean): Book | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  if (!integer(item.id, 1) || typeof item.title !== "string" || !integer(item.page_count)) return null;
+  if (item.access === "shared") {
+    const allowed = detail ? SHARED_DETAIL_KEYS : SHARED_SUMMARY_KEYS;
+    if (item.is_owner !== false || item.shared_with_all !== true
+        || Object.keys(item).some((key) => !allowed.has(key))) return null;
+    if (detail) {
+      if (!Array.isArray(item.sections)) return null;
+      const sections = item.sections.map(decodeSharedSection);
+      if (sections.some((section) => section === null)) return null;
+      return { ...item, sections } as SharedBook;
+    }
+    return item as SharedBook;
+  }
+  if (item.access !== "owner" || item.is_owner !== true || typeof item.shared_with_all !== "boolean"
+      || typeof item.status !== "string" || !integer(item.total_sections)
+      || !integer(item.completed_sections) || !integer(item.generated_lessons)
+      || !integer(item.failed_sections) || !integer(item.remaining_sections)
+      || typeof item.activated !== "boolean") return null;
+  if (detail && item.sections !== undefined && !Array.isArray(item.sections)) return null;
+  return item as OwnerBook;
+}
+
+function decodeBookList(value: unknown): Book[] {
+  return Array.isArray(value)
+    ? value.map((item) => decodeBook(item, false)).filter((item): item is Book => item !== null)
+    : [];
+}
+
+function decodeBookDetail(value: unknown): Book {
+  const book = decodeBook(value, true);
+  if (!book) throw new ApiError(0, "invalid_book_response", "PrepPilot received an invalid book response.", false);
+  return book;
+}
+
 function decodeBookCitation(value: unknown): BookCitation | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
@@ -298,15 +404,21 @@ export const api = {
   diagnoseLearnNext: (): Promise<LearningDiagnosis> =>
     req("/api/learn-next/diagnose", { method: "POST" }),
   roadmap: () => req("/api/roadmap"),
-  books: () => req("/api/books"),
-  book: (id: number) => req(`/api/books/${id}`),
+  books: (): Promise<Book[]> => req("/api/books").then(decodeBookList),
+  book: (id: number): Promise<Book> => req(`/api/books/${id}`).then(decodeBookDetail),
   uploadBook: (file: File) => {
     const body = new FormData(); body.append("file", file);
     return req("/api/books", { method: "POST", body });
   },
   activateBook: (id: number) => req(`/api/books/${id}/activate`, { method: "POST" }),
   retryBook: (id: number) => req(`/api/books/${id}/retry`, { method: "POST" }),
+  shareBook: (id: number, shared_with_all: boolean): Promise<BookSharingResult> =>
+    req(`/api/books/${id}/sharing`, {
+      method: "PUT", headers: json, body: JSON.stringify({ shared_with_all }),
+    }),
   bookPageUrl: (id: number, page: number) => `/api/books/${id}/pages/${page}`,
+  bookPage: (id: number, page: number, signal?: AbortSignal): Promise<Blob> =>
+    reqBlob(`/api/books/${id}/pages/${page}`, { signal }),
   bookChat: (id: number, question: string, scope = "book", section_id?: number, page?: number): Promise<BookChatResponse> =>
     req(`/api/books/${id}/chat`, { method: "POST", headers: json, body: JSON.stringify({ question, scope, section_id, page }) }).then(decodeBookChatResponse),
   bookChatHistory: (id: number): Promise<BookChatMessage[]> => req(`/api/books/${id}/chat`).then(decodeBookChatHistory),

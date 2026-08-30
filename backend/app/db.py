@@ -52,6 +52,7 @@ _ADD_COLUMNS = {
         ("user_id", "INTEGER"),
         ("daily_application_target", "INTEGER DEFAULT 5"),
     ],
+    "book": [("shared_with_all", "BOOLEAN NOT NULL DEFAULT 0")],
     "coursecheckpointattempt": [("response_json", "VARCHAR DEFAULT '{}'")],
     "courseoralturn": [
         ("next_question", "VARCHAR DEFAULT ''"),
@@ -92,6 +93,7 @@ _COURSE_SCHEMA = {
     ),
 }
 _READER_SCHEMA_MARKER = "book_reader_schema_v1"
+_BOOK_SHARING_SCHEMA_MARKER = "book_sharing_schema_v1"
 _READER_SCHEMA = {
     "bookreadingprogress": (
         {"user_id", "book_id", "page_number", "updated_at"},
@@ -113,11 +115,16 @@ def _migrate() -> None:
             for name, decl in columns:
                 if name not in existing:
                     conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+        if conn.exec_driver_sql("SELECT 1 FROM sqlite_master WHERE type='table' AND name='book'").fetchone():
+            conn.exec_driver_sql(
+                "CREATE INDEX IF NOT EXISTS ix_book_shared_with_all ON book(shared_with_all)"
+            )
         _ensure_course_link_match_kind_check(conn)
         _rebuild_unique_indexes(conn)
         _backfill_audience(conn)
         _validate_course_schema(conn)
         _validate_reader_schema(conn)
+        _validate_book_sharing_schema(conn)
         conn.exec_driver_sql(
             "INSERT OR IGNORE INTO _meta (key, value) VALUES (?, datetime('now'))",
             (_COURSE_SCHEMA_MARKER,),
@@ -125,6 +132,10 @@ def _migrate() -> None:
         conn.exec_driver_sql(
             "INSERT OR IGNORE INTO _meta (key, value) VALUES (?, datetime('now'))",
             (_READER_SCHEMA_MARKER,),
+        )
+        conn.exec_driver_sql(
+            "INSERT OR IGNORE INTO _meta (key, value) VALUES (?, datetime('now'))",
+            (_BOOK_SHARING_SCHEMA_MARKER,),
         )
     _migrate_multiuser()
 
@@ -161,6 +172,21 @@ def _validate_reader_schema(conn) -> None:
         }
         if unique_columns not in unique_sets:
             raise RuntimeError(f"reader schema {table} lacks unique index {unique_columns}")
+
+
+def _validate_book_sharing_schema(conn) -> None:
+    """Fail startup if legacy books were not migrated to private-by-default sharing."""
+    columns = {
+        row[1]: row for row in conn.exec_driver_sql("PRAGMA table_info(book)")
+    }
+    sharing = columns.get("shared_with_all")
+    if sharing is None or not sharing[3] or str(sharing[4]).strip("'\"") not in {"0", "False", "false"}:
+        raise RuntimeError("book sharing schema lacks private non-null default")
+    indexes = {
+        row[1] for row in conn.exec_driver_sql("PRAGMA index_list(book)")
+    }
+    if "ix_book_shared_with_all" not in indexes:
+        raise RuntimeError("book sharing schema lacks shared access index")
 
 
 def _course_link_has_match_kind_check(conn) -> bool:
