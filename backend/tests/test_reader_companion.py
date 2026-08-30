@@ -274,6 +274,21 @@ class ReaderCompanionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(caught.exception.payload["error"]["code"], "page_context_too_large")
             self.assertEqual(caught.exception.payload["error"]["page"], 4)
 
+    def test_page_chat_adjacent_fallback_stays_bounded_when_no_fallback_is_needed_or_readable(self):
+        with memory_session() as session:
+            alice = add_user(session, "chat-adjacent-bounds")
+            defined = self.make_book(session, alice, ["Disaggregation is defined on this page."])
+            self.assertEqual(
+                book_service.page_chat_sources(defined, 1, "What is disaggregation?"),
+                [(1, "Disaggregation is defined on this page.")],
+            )
+
+            unreadable_neighbor = self.make_book(session, alice, ["Visible current text.", ""])
+            self.assertEqual(
+                book_service.page_chat_sources(unreadable_neighbor, 1, "What is a missing concept?"),
+                [(1, "Visible current text.")],
+            )
+
     def test_chat_scope_is_closed_and_citations_are_defensively_decoded(self):
         typed = ChatOut(answer="grounded", citations=[CitationOut(
             section_id=None, citation="Reader p1", page_start=1, page_end=1,
@@ -352,7 +367,7 @@ class ReaderCompanionTests(unittest.IsolatedAsyncioTestCase):
             alice = add_user(session, "chat-page")
             book = self.make_book(session, alice, ["Only this exact visible fact."])
             response = Response()
-            with patch("app.routers.book_routes.llm.chat", new=AsyncMock(return_value="Grounded")) as model:
+            with patch("app.routers.book_routes.llm.chat", new=AsyncMock(return_value="Grounded [Source 1, page 1]")) as model:
                 result = await chat(
                     book.id, ChatIn(question="What is here?", scope="page", page=1),
                     alice, session, response,
@@ -361,6 +376,47 @@ class ReaderCompanionTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Only this exact visible fact", prompt)
             self.assertEqual(result["citations"][0]["page_start"], 1)
             self.assertEqual(response.headers["cache-control"], "private, no-store")
+
+    async def test_page_chat_uses_matching_adjacent_text_for_a_visual_term_and_only_cites_used_sources(self):
+        with memory_session() as session:
+            alice = add_user(session, "chat-visual-term")
+            book = self.make_book(session, alice, [
+                "The diagram summarizes runtime optimizations, including several labels.",
+                "Disaggregation separates prefill and decode onto independently scaling workers.",
+            ])
+            with patch(
+                "app.routers.book_routes.llm.chat",
+                new=AsyncMock(return_value="It lets the two jobs scale separately. [Source 2, page 2]"),
+            ) as model:
+                result = await chat(
+                    book.id,
+                    ChatIn(question="What is disaggregation? Explain in layman terms.", scope="page", page=1),
+                    alice,
+                    session,
+                    Response(),
+                )
+
+            prompt = model.await_args.args[0][1]["content"]
+            self.assertIn("SOURCE 1: Reader, page 1", prompt)
+            self.assertIn("SOURCE 2: Reader, page 2", prompt)
+            self.assertEqual(result["citations"], [{
+                "section_id": None, "citation": "Reader, page 2", "page_start": 2, "page_end": 2,
+            }])
+
+    async def test_chat_does_not_attach_a_source_the_answer_did_not_cite(self):
+        with memory_session() as session:
+            alice = add_user(session, "chat-unused-citation")
+            book = self.make_book(session, alice, ["The available text does not define the requested term."])
+            with patch(
+                "app.routers.book_routes.llm.chat",
+                new=AsyncMock(return_value="The provided excerpt does not contain that definition."),
+            ):
+                result = await chat(
+                    book.id, ChatIn(question="What is disaggregation?", scope="page", page=1),
+                    alice, session, Response(),
+                )
+
+            self.assertEqual(result["citations"], [])
 
     def test_delete_removes_reader_children_and_rolls_back_on_unlink_failure(self):
         with memory_session() as session:
@@ -537,7 +593,7 @@ class ReaderCompanionTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaisesRegex(HTTPException, "No extracted"):
                     await chat(book.id, ChatIn(question="q"), alice, session, Response())
             with patch("app.routers.book_routes.book_service.retrieve", return_value=[failed]), patch(
-                "app.routers.book_routes.llm.chat", new=AsyncMock(return_value="answer"),
+                "app.routers.book_routes.llm.chat", new=AsyncMock(return_value="answer [Source 1, page 1]"),
             ):
                 result = await chat(book.id, ChatIn(question="q", scope="chapter", section_id=failed.id), alice, session, Response())
             self.assertEqual(result["citations"][0]["section_id"], failed.id)

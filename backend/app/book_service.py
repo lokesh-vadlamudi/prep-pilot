@@ -27,6 +27,11 @@ MIN_SEARCH_CHARS = 3
 MAX_SEARCH_CHARS = 200
 MAX_SEARCH_RESULTS = 50
 SEARCH_SNIPPET_CHARS = 180
+PAGE_QUESTION_STOPWORDS = {
+    "about", "could", "define", "does", "explain", "from", "have", "into", "layman",
+    "mean", "page", "please", "show", "that", "this", "what", "when", "where", "which",
+    "with", "would",
+}
 
 
 class ReaderContextError(Exception):
@@ -111,6 +116,35 @@ def validate_page_context(text: str, page: int = 1) -> str:
         "page": page,
         "limits": {"characters": MAX_PAGE_CONTEXT_CHARS, "estimated_tokens": MAX_PAGE_CONTEXT_TOKENS},
     }})
+
+
+def page_chat_sources(book: Book, page_number: int, question: str) -> list[tuple[int, str]]:
+    """Return the visible page plus one bounded adjacent page when it defines a missing visual term."""
+    current = validate_page_context(page_text(book, page_number), page_number)
+    sources = [(page_number, current)]
+    terms = {
+        word.lower() for word in re.findall(r"[A-Za-z0-9_-]{4,}", question)
+        if word.lower() not in PAGE_QUESTION_STOPWORDS
+    }
+    missing = {term for term in terms if term not in current.lower()}
+    if not missing:
+        return sources
+
+    matches: list[tuple[int, int, str]] = []
+    for candidate_page in (page_number + 1, page_number - 1):
+        if candidate_page < 1 or candidate_page > book.page_count:
+            continue
+        try:
+            candidate_text = validate_page_context(page_text(book, candidate_page), candidate_page)
+        except ReaderContextError:
+            continue
+        score = sum(candidate_text.lower().count(term) for term in missing)
+        if score:
+            matches.append((score, candidate_page, candidate_text))
+    if matches:
+        _, candidate_page, candidate_text = max(matches, key=lambda item: item[0])
+        sources.append((candidate_page, candidate_text))
+    return sources
 
 
 def render_page(book: Book, page_number: int) -> bytes:

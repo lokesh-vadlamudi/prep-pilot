@@ -192,7 +192,7 @@ class PageReaderTests(unittest.IsolatedAsyncioTestCase):
             try:
                 alice = user(session, "page-chat-alice")
                 book = self._book(directory, session, alice, ["Alpha is only on page one.", "Beta is only on page two."])
-                with patch("app.routers.book_routes.llm.chat", new=AsyncMock(return_value="Grounded answer")) as model:
+                with patch("app.routers.book_routes.llm.chat", new=AsyncMock(return_value="Grounded answer [Source 1, page 2]")) as model:
                     result = await chat(book.id, ChatIn(question="What is here?", scope="page", page=2), alice, session)
 
                 prompt = model.await_args.args[0][1]["content"]
