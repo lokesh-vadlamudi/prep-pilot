@@ -38,6 +38,22 @@ function failureText(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function chatFailureText(error: unknown): string {
+  if (error && typeof error === "object") {
+    const failure = error as Record<string, unknown>;
+    if (failure.code === "page_text_unavailable") {
+      return "This page has no selectable text for DGX to read. Try a text page or switch context to Whole book.";
+    }
+    if (failure.code === "page_context_too_large") {
+      return "This page is too large for exact-page chat. Switch context to Whole book to ask across extracted sections.";
+    }
+    if ((failure.status === 409 || failure.status === 422) && typeof failure.detail === "string") {
+      return failure.detail;
+    }
+  }
+  return "DGX could not answer from this scope. Your page is preserved; retry when DGX is available.";
+}
+
 export default function MakeMeLearn() {
   const [books, setBooks] = useState<Book[]>([]);
   const [active, setActive] = useState<Book | null>(null);
@@ -240,8 +256,8 @@ export default function MakeMeLearn() {
       const response = await api.bookChat(book.id, q, scope, sectionId, scope === "page" ? page : undefined);
       if (activeRef.current?.id !== book.id) return;
       setMessages((items) => [...items, { role: "assistant", content: response.answer, citations: response.citations }]);
-    } catch {
-      if (activeRef.current?.id === book.id) setMessages((items) => [...items, { role: "assistant", content: "DGX could not answer from this scope. Your page is preserved; retry when DGX is available." }]);
+    } catch (caught) {
+      if (activeRef.current?.id === book.id) setMessages((items) => [...items, { role: "assistant", content: chatFailureText(caught) }]);
     } finally { setAsking(false); }
   }
 

@@ -249,6 +249,42 @@ describe("Read a book", () => {
     expect(screen.getByAltText("Page 1 of Inference Engineering")).toBeTruthy();
   });
 
+  it("distinguishes a textless page from a DGX outage and suggests a usable scope", async () => {
+    vi.mocked(api.bookChat).mockRejectedValueOnce({
+      status: 409,
+      code: "page_text_unavailable",
+      detail: "This page has no extractable text.",
+      retryable: false,
+    });
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    await screen.findByAltText("Page 1 of Inference Engineering");
+
+    fireEvent.click(screen.getByRole("button", { name: "What are the key ideas?" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+
+    expect(await screen.findByText(/no selectable text/i)).toBeTruthy();
+    expect(screen.getByText(/switch context to Whole book/i)).toBeTruthy();
+    expect(screen.queryByText(/retry when DGX is available/i)).toBeNull();
+  });
+
+  it("maps remaining grounded-chat failures without losing their actionable detail", async () => {
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    await screen.findByAltText("Page 1 of Inference Engineering");
+    const cases = [
+      [{ status: 422, code: "page_context_too_large", detail: "large" }, /too large for exact-page chat/i],
+      [{ status: 409, code: "http_409", detail: "No extracted source is ready." }, /No extracted source is ready/i],
+      [{ status: 422, code: "http_422", detail: "Page is outside this book." }, /Page is outside this book/i],
+      ["offline", /retry when DGX is available/i],
+    ] as const;
+
+    for (const [failure, expected] of cases) {
+      vi.mocked(api.bookChat).mockRejectedValueOnce(failure);
+      fireEvent.click(screen.getByRole("button", { name: "What are the key ideas?" }));
+      fireEvent.click(screen.getByRole("button", { name: "Ask" }));
+      expect(await screen.findByText(expected)).toBeTruthy();
+    }
+  });
+
   it("supports non-page chat keyboard submission, retry, clear success, and optional section display", async () => {
     vi.mocked(api.bookChatHistory).mockResolvedValueOnce([{ role: "assistant", content: "History", citations: [] }] as any);
     render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
