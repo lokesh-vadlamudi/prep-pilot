@@ -1258,13 +1258,13 @@ class InferenceCourseRouteTests(unittest.TestCase):
         app.include_router(ask_routes.router)
         app.dependency_overrides[auth.current_user] = self._alice
         with patch("app.scheduler.generate_new_concepts", new=AsyncMock(return_value=3)), \
-             patch("app.llm.health", new=AsyncMock(return_value=True)):
+             patch("app.llm.model_status", new=AsyncMock(return_value=(True, "served-model"))):
             with TestClient(app) as client:
                 generated = client.post("/api/generate-now?per_track=1")
                 health = client.get("/api/brain-health")
         self.assertEqual(generated.json(), {"added": 3})
         self.assertTrue(health.json()["online"])
-        self.assertIn("model", health.json())
+        self.assertEqual(health.json()["model"], "served-model")
 
     def test_main_setup_health_and_lifespan_orchestration_use_injected_database(self):
         from app import main as main_module

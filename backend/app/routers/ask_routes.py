@@ -37,4 +37,5 @@ async def generate_now(per_track: int = Query(1, ge=1, le=5), user: User = Requi
 
 @router.get("/brain-health")
 async def brain_health():
-    return {"online": await llm.health(), "model": llm.settings.model}
+    online, model = await llm.model_status()
+    return {"online": online, "model": model}
