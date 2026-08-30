@@ -1,4 +1,4 @@
-"""Client for the DGX vLLM OpenAI-compatible API (qwen3.8-27b)."""
+"""Client for the DGX vLLM OpenAI-compatible API."""
 from __future__ import annotations
 
 import json
@@ -97,10 +97,25 @@ async def chat_json(
     return _extract_json(raw)
 
 
-async def health() -> bool:
+async def model_status() -> tuple[bool, str]:
+    """Return endpoint availability and the model ID actually served by vLLM."""
     try:
         async with httpx.AsyncClient(timeout=5.0) as client:
             r = await client.get(f"{settings.llm_base_url.rstrip('/')}/models")
-            return r.status_code == 200
+        if r.status_code != 200:
+            return False, settings.model
+        try:
+            models = r.json().get("data") or []
+        except (AttributeError, TypeError, ValueError):
+            return True, settings.model
+        served_ids = [item.get("id") for item in models if isinstance(item, dict) and item.get("id")]
+        if settings.model in served_ids:
+            return True, settings.model
+        return True, served_ids[0] if served_ids else settings.model
     except httpx.HTTPError:
-        return False
+        return False, settings.model
+
+
+async def health() -> bool:
+    online, _ = await model_status()
+    return online

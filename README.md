@@ -48,6 +48,36 @@ cd backend && uv sync && uv run uvicorn app.main:app --port 8899 --reload
 cd frontend && npm install && npm run dev   # http://localhost:5177
 ```
 
+Frontend verification runs from `frontend/`:
+
+```bash
+npm test
+npm run build
+npm run test:coverage:changed
+npm run test:coverage:gate:self
+```
+
+The changed-coverage command generates deterministic V8 JSON coverage, then
+requires at least 95% changed executable lines and at least 95% lines,
+statements, functions, and branches in every touched production TypeScript
+module. It compares with `HEAD` by default; set `FRONTEND_COVERAGE_BASE` to an
+explicit Git base when checking a branch or CI change set.
+
+Backend verification uses development-only coverage tools:
+
+```bash
+cd backend
+uv sync --locked --group dev
+uv run --group dev coverage run --branch -m unittest discover -s tests -q
+uv run --group dev coverage xml -o coverage.xml
+cd ..
+uv run --project backend --group dev diff-cover backend/coverage.xml --compare-branch=HEAD \
+  --include-untracked --include 'backend/app/**' --fail-under=95
+```
+
+The runtime dependency set is unchanged; `coverage` and `diff-cover` are locked
+only in the backend development group.
+
 ## Environments
 
 | Environment | Source | URL | Mac mini service | Data |

@@ -17,8 +17,7 @@ from app import auth, book_service, scheduler, service
 from app.config import settings
 from app.models import Book, Card, Concept, ConceptStatus, IngestionSection, User
 from app.routers.study_routes import TopicStatusIn, set_topic_status, topic, topics
-from app.routers.book_routes import retry_book
-from app.routers.book_routes import clear_chat
+from app.routers.book_routes import ChatIn, chat, clear_chat, read_page, retry_book
 
 
 def memory_session() -> Session:
@@ -150,6 +149,78 @@ class UploadValidationTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 settings.book_storage_dir = old
 
+
+class PageReaderTests(unittest.IsolatedAsyncioTestCase):
+    def _book(self, directory: str, session: Session, owner: User, pages: list[str]) -> Book:
+        book = Book(
+            user_id=owner.id, title="Reader", original_filename="reader.pdf",
+            storage_path="", sha256=f"reader-sha-{owner.id}", page_count=len(pages), status="ready",
+        )
+        session.add(book); session.commit(); session.refresh(book)
+        owner_dir = Path(directory) / str(owner.id); owner_dir.mkdir()
+        path = owner_dir / f"{book.id}.pdf"
+        document = fitz.open()
+        for text in pages:
+            page = document.new_page()
+            page.insert_textbox((50, 50, 560, 790), text, fontsize=11)
+        document.save(path)
+        document.close()
+        book.storage_path = str(path)
+        session.add(book); session.commit(); session.refresh(book)
+        return book
+
+    async def test_reader_renders_only_owned_bounded_pages(self):
+        with tempfile.TemporaryDirectory() as directory, memory_session() as session:
+            old = settings.book_storage_dir; settings.book_storage_dir = directory
+            try:
+                alice = user(session, "reader-alice")
+                book = self._book(directory, session, alice, ["Page one facts", "Page two facts"])
+
+                response = read_page(book.id, 2, alice, session)
+
+                self.assertEqual(response.media_type, "image/png")
+                self.assertTrue(response.body.startswith(b"\x89PNG"))
+                self.assertEqual(response.headers["cache-control"], "private, no-store")
+                with self.assertRaisesRegex(HTTPException, "Page not found"):
+                    read_page(book.id, 3, alice, session)
+            finally:
+                settings.book_storage_dir = old
+
+    async def test_page_chat_uses_exact_visible_page_and_citation(self):
+        with tempfile.TemporaryDirectory() as directory, memory_session() as session:
+            old = settings.book_storage_dir; settings.book_storage_dir = directory
+            try:
+                alice = user(session, "page-chat-alice")
+                book = self._book(directory, session, alice, ["Alpha is only on page one.", "Beta is only on page two."])
+                with patch("app.routers.book_routes.llm.chat", new=AsyncMock(return_value="Grounded answer [Source 1, page 2]")) as model:
+                    result = await chat(book.id, ChatIn(question="What is here?", scope="page", page=2), alice, session)
+
+                prompt = model.await_args.args[0][1]["content"]
+                self.assertIn("Beta is only on page two", prompt)
+                self.assertNotIn("Alpha is only on page one", prompt)
+                self.assertEqual(result["citations"], [{
+                    "section_id": None, "citation": "Reader, page 2", "page_start": 2, "page_end": 2,
+                }])
+            finally:
+                settings.book_storage_dir = old
+
+    async def test_reader_rejects_database_paths_outside_private_storage(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as outside, memory_session() as session:
+            old = settings.book_storage_dir; settings.book_storage_dir = directory
+            try:
+                alice = user(session, "reader-path-alice")
+                path = Path(outside) / "outside.pdf"
+                document = fitz.open(); document.new_page(); document.save(path); document.close()
+                book = Book(
+                    user_id=alice.id, title="Outside", original_filename="outside.pdf",
+                    storage_path=str(path), sha256="outside-sha", page_count=1,
+                )
+                session.add(book); session.commit(); session.refresh(book)
+
+                with self.assertRaisesRegex(HTTPException, "unavailable"):
+                    read_page(book.id, 1, alice, session)
+            finally:
+                settings.book_storage_dir = old
 
 class GeneratedCardValidationTests(unittest.TestCase):
     def test_invalid_mcq_is_rejected(self):

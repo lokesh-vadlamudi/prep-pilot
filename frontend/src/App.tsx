@@ -116,7 +116,7 @@ export default function App() {
       <div className="shell">
         <Rail user={auth.user} invite={auth.invite} isAdmin={Boolean(auth.isAdmin)} runtime={runtime} theme={theme} themeToggle={toggle}
               onLogout={() => setAuth({ loading: false, authed: false, user: "" })} />
-        <div className="main">
+        <main className="main" id="main-content">
           <Routes>
             <Route path="/" element={<Today />} />
             <Route path="/plan" element={<FlightPlan />} />
@@ -130,11 +130,13 @@ export default function App() {
             <Route path="/ask" element={<Ask />} />
             <Route path="/progress" element={<Progress />} />
             <Route path="/jobs" element={<Jobs />} />
-            <Route path="/make-me-learn" element={<MakeMeLearn />} />
+            <Route path="/read" element={<MakeMeLearn />} />
+            <Route path="/make-me-learn" element={<Navigate to="/read" replace />} />
+            <Route path="/courses/inference-engineering/*" element={<Navigate to="/read" replace />} />
             <Route path="/admin" element={auth.isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
-        </div>
+        </main>
       </div>
     </div>
   );
@@ -165,7 +167,7 @@ function Rail({ user, invite, isAdmin, runtime, theme, themeToggle, onLogout }: 
     { to: "/ask", label: "Ask the tutor", hint: "q&a" },
     { to: "/progress", label: "Flight log", hint: "progress" },
     { to: "/jobs", label: "Job search", hint: "applications" },
-    { to: "/make-me-learn", label: "Make me learn", hint: "books" },
+    { to: "/read", label: "Read a book", hint: "library" },
     ...(isAdmin ? [{ to: "/admin", label: "Admin monitor", hint: "users" }] : []),
   ];
 

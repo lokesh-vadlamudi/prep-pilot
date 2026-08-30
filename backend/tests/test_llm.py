@@ -50,6 +50,7 @@ class LlmTransportTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_health_uses_vllm_models_endpoint(self):
         response = MagicMock(status_code=200)
+        response.json.return_value = {"data": [{"id": "served-model"}]}
         client = AsyncMock()
         client.get.return_value = response
         context = AsyncMock()
@@ -64,6 +65,28 @@ class LlmTransportTests(unittest.IsolatedAsyncioTestCase):
             settings.llm_base_url = old_base_url
 
         client.get.assert_awaited_once_with("http://dgx.test:8000/v1/models")
+
+    async def test_model_status_reports_the_model_served_by_vllm(self):
+        response = MagicMock(status_code=200)
+        response.json.return_value = {"data": [{"id": "qwen3.8-flash-next"}]}
+        client = AsyncMock()
+        client.get.return_value = response
+        context = AsyncMock()
+        context.__aenter__.return_value = client
+
+        with patch("app.llm.httpx.AsyncClient", return_value=context):
+            self.assertEqual(await llm.model_status(), (True, "qwen3.8-flash-next"))
+
+    async def test_model_status_falls_back_to_configured_model_for_malformed_payload(self):
+        response = MagicMock(status_code=200)
+        response.json.side_effect = ValueError("not json")
+        client = AsyncMock()
+        client.get.return_value = response
+        context = AsyncMock()
+        context.__aenter__.return_value = client
+
+        with patch("app.llm.httpx.AsyncClient", return_value=context):
+            self.assertEqual(await llm.model_status(), (True, settings.model))
 
 
 if __name__ == "__main__":
