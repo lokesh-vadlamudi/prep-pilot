@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, date
 from typing import Optional
 
+from sqlalchemy import CheckConstraint
 from sqlmodel import SQLModel, Field, UniqueConstraint
 
 
@@ -244,3 +245,150 @@ class ConceptStatus(SQLModel, table=True):
     concept_id: int = Field(index=True, foreign_key="concept.id")
     completed: bool = False
     completed_at: Optional[datetime] = None
+
+
+class CourseEnrollment(SQLModel, table=True):
+    """Explicit opt-in to one immutable course catalog."""
+    __table_args__ = (
+        UniqueConstraint("user_id", "course_key", name="ux_course_enrollment_user_course"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    course_key: str = Field(index=True, max_length=100)
+    catalog_version: str = Field(max_length=40)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class CourseMissionProgress(SQLModel, table=True):
+    """Derived, nonnumeric state for one learner and course mission."""
+    __table_args__ = (
+        UniqueConstraint("user_id", "mission_id", name="ux_course_progress_user_mission"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    mission_id: str = Field(index=True, max_length=40)
+    state: str = Field(default="not_started", max_length=40)
+    completed_at: Optional[datetime] = None
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class CourseArtifactEvidence(SQLModel, table=True):
+    """Metadata for a learner-owned artifact; referenced content is never read."""
+    __table_args__ = (
+        UniqueConstraint("user_id", "artifact_id", name="ux_course_artifact_user_artifact"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    mission_id: str = Field(index=True, max_length=40)
+    artifact_id: str = Field(index=True, max_length=80)
+    note: str = Field(default="", max_length=5000)
+    artifact_uri: str = Field(default="", max_length=2048)
+    template_key: str = Field(default="", max_length=100)
+    output_format: str = Field(default="", max_length=20)
+    draft_json: str = Field(default="{}", max_length=30000)
+    rubric_json: str = Field(default="[]", max_length=20000)
+    source_ids_json: str = Field(default="[]", max_length=20000)
+    catalog_version: str = Field(default="", max_length=40)
+    revision: int = 1
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class CourseCheckpointAttempt(SQLModel, table=True):
+    """One qualitative checkpoint submission; request IDs preserve genuine retries."""
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "checkpoint_id", "request_id",
+            name="ux_course_checkpoint_user_checkpoint_request",
+        ),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    checkpoint_id: str = Field(index=True, max_length=80)
+    request_id: str = Field(max_length=100)
+    payload_sha256: str = Field(max_length=64)
+    answers_json: str = Field(default="{}", max_length=20000)
+    passed: bool = False
+    feedback: str = Field(default="", max_length=5000)
+    response_json: str = Field(default="{}", max_length=20000)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class CourseOralTurn(SQLModel, table=True):
+    """One persisted oral-practice turn with a durable client identity."""
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "mission_id", "turn_id", name="ux_course_oral_user_mission_turn"
+        ),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    mission_id: str = Field(index=True, max_length=40)
+    turn_id: str = Field(max_length=100)
+    payload_sha256: str = Field(max_length=64)
+    prompt: str = Field(default="", max_length=4000)
+    response: str = Field(default="", max_length=4000)
+    feedback: str = Field(default="", max_length=4000)
+    next_question: str = Field(default="", max_length=4000)
+    response_json: str = Field(default="{}", max_length=20000)
+    created_at: datetime = Field(default_factory=utcnow)
+
+
+class CourseOralReview(SQLModel, table=True):
+    """Nonnumeric review state for online or self-recorded oral practice."""
+    __table_args__ = (
+        UniqueConstraint("user_id", "mission_id", name="ux_course_oral_review_user_mission"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    mission_id: str = Field(index=True, max_length=40)
+    state: str = Field(default="not_started", max_length=40)
+    mode: str = Field(default="", max_length=40)
+    self_record_note: str = Field(default="", max_length=5000)
+    rubric_acknowledgements_json: str = Field(default="[]", max_length=10000)
+    review_method: str = Field(default="", max_length=40)
+    review_feedback: str = Field(default="", max_length=5000)
+    attempt_recorded_at: Optional[datetime] = None
+    reviewed_at: Optional[datetime] = None
+    revision: int = 0
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class CourseContentLink(SQLModel, table=True):
+    """A reversible pointer from a course module to already-visible content."""
+    __table_args__ = (
+        UniqueConstraint("user_id", "module_id", name="ux_course_link_user_module"),
+        CheckConstraint(
+            "match_kind IN ('owned_exact','legacy_exact','explicit_supplement_alias')",
+            name="ck_course_link_match_kind",
+        ),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    module_id: str = Field(index=True, max_length=40)
+    concept_id: int = Field(index=True, foreign_key="concept.id")
+    match_kind: str = Field(max_length=40)
+    candidate_fingerprint: str = Field(max_length=64)
+    confirmed_at: datetime = Field(default_factory=utcnow)
+    revision: int = 1
+
+
+class CourseMutationReceipt(SQLModel, table=True):
+    """Immutable replay ledger retained for the lifetime of an enrollment."""
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "course_key", "operation", "request_id",
+            name="ux_course_receipt_user_course_operation_request",
+        ),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    course_key: str = Field(index=True, max_length=100)
+    operation: str = Field(index=True, max_length=60)
+    request_id: str = Field(max_length=100)
+    resource_key: str = Field(max_length=200)
+    payload_sha256: str = Field(max_length=64)
+    status_code: int
+    response_json: str = Field(max_length=30000)
+    created_at: datetime = Field(default_factory=utcnow, index=True)

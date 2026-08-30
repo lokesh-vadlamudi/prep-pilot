@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api } from "./api";
 import Login from "./pages/Login";
 import Today from "./pages/Today";
@@ -12,6 +12,9 @@ import Progress from "./pages/Progress";
 import FlightPlan from "./pages/FlightPlan";
 import MakeMeLearn from "./pages/MakeMeLearn";
 import AdminDashboard from "./pages/AdminDashboard";
+import InferenceCourse from "./pages/InferenceCourse";
+import InferenceModule from "./pages/InferenceModule";
+import InferenceLinkedTopic from "./pages/InferenceLinkedTopic";
 
 // Heavy (CodeMirror) — only loaded when opening a problem to solve.
 const Solve = lazy(() => import("./pages/Solve"));
@@ -115,7 +118,7 @@ export default function App() {
       <div className="shell">
         <Rail user={auth.user} invite={auth.invite} isAdmin={Boolean(auth.isAdmin)} runtime={runtime} theme={theme} themeToggle={toggle}
               onLogout={() => setAuth({ loading: false, authed: false, user: "" })} />
-        <div className="main">
+        <main className="main" id="main-content">
           <Routes>
             <Route path="/" element={<Today />} />
             <Route path="/plan" element={<FlightPlan />} />
@@ -129,10 +132,13 @@ export default function App() {
             <Route path="/ask" element={<Ask />} />
             <Route path="/progress" element={<Progress />} />
             <Route path="/make-me-learn" element={<MakeMeLearn />} />
+            <Route path="/courses/inference-engineering" element={<InferenceCourse />} />
+            <Route path="/courses/inference-engineering/:moduleId" element={<InferenceModule />} />
+            <Route path="/courses/inference-engineering/:moduleId/linked-topics/:conceptId" element={<InferenceLinkedTopic />} />
             <Route path="/admin" element={auth.isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
-        </div>
+        </main>
       </div>
     </div>
   );
@@ -146,13 +152,15 @@ function Rail({ user, invite, isAdmin, runtime, theme, themeToggle, onLogout }: 
   user: string; invite?: string; isAdmin: boolean; runtime: Runtime; theme: string; themeToggle: () => void; onLogout: () => void;
 }) {
   const nav = useNavigate();
+  const location = useLocation();
+  const inInferenceCourse = location.pathname.startsWith("/courses/inference-engineering");
   const [brain, setBrain] = useState<{ online: boolean; model: string }>({ online: false, model: "" });
   const [streak, setStreak] = useState<number>(0);
 
   useEffect(() => {
     api.brainHealth().then(setBrain).catch(() => {});
-    api.today().then((p) => setStreak(p.streak)).catch(() => {});
-  }, []);
+    if (!inInferenceCourse) api.today().then((p) => setStreak(p.streak)).catch(() => {});
+  }, [inInferenceCourse]);
 
   const links = [
     { to: "/", label: "Pre-flight", hint: "today" },
@@ -163,6 +171,7 @@ function Rail({ user, invite, isAdmin, runtime, theme, themeToggle, onLogout }: 
     { to: "/ask", label: "Ask the tutor", hint: "q&a" },
     { to: "/progress", label: "Flight log", hint: "progress" },
     { to: "/make-me-learn", label: "Make me learn", hint: "books" },
+    { to: "/courses/inference-engineering", label: "Inference course", hint: "labs" },
     ...(isAdmin ? [{ to: "/admin", label: "Admin monitor", hint: "users" }] : []),
   ];
 
@@ -197,10 +206,10 @@ function Rail({ user, invite, isAdmin, runtime, theme, themeToggle, onLogout }: 
       ))}
       <div className="spacer" />
       <div className="status-strip">
-        <div className="row">
+        {!inInferenceCourse && <div className="row">
           <span>streak</span>
           <span className="mono" style={{ color: "var(--amber)" }}>{streak}d</span>
-        </div>
+        </div>}
         <div className="row">
           <span>brain</span>
           <span className={"led" + (brain.online ? "" : " off")}>{brain.online ? "online" : "offline"}</span>

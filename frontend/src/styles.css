@@ -1072,9 +1072,74 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .empty { text-align: center; padding: 50px 20px; color: var(--muted); }
 .empty .big { font-family: var(--display); font-size: 44px; color: var(--pass); }
 
+/* Inference Flight School */
+.course-page { width: 100%; max-width: 1180px; min-width: 0; }
+.course-hero { display: grid; gap: 12px; }
+.course-hero .btn { width: fit-content; }
+.course-facts, .course-tags { display: flex; flex-wrap: wrap; gap: 8px 18px; color: var(--muted); }
+.course-facts strong { color: var(--ink); }
+.course-section-head { margin: 30px 0 12px; }
+.course-section-head h2 { margin: 4px 0; }
+.course-mission-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 0; padding: 0; list-style: none; }
+.course-mission { min-width: 0; border-left: 3px solid var(--hairline); }
+.course-mission.in_progress, .course-mission.ready_for_checkpoint { border-left-color: var(--course); }
+.course-mission.complete { border-left-color: var(--pass); }
+.course-mission h3 { margin: 12px 0 8px; font: 700 22px var(--display); text-transform: uppercase; }
+.course-mission h3 a { color: var(--ink); text-decoration: none; }
+.course-mission h3 a:hover { color: var(--course-deep); }
+.course-tags span { border-radius: 999px; background: var(--paper-2); padding: 4px 8px; font: 600 10px var(--mono); }
+.course-blocked { color: var(--caution); font-size: 13px; }
+.course-artifact-summary { display: grid; gap: 2px; margin-top: 12px; border-top: 1px solid var(--hairline-soft); padding-top: 10px; }
+.course-artifact-summary small { color: var(--faint); overflow-wrap: anywhere; }
+.course-error { max-width: 680px; }
+.course-error .btn { margin-right: 10px; }
+.course-linked-topic { min-width: 0; }
+.course-linked-topic .md { overflow-wrap: anywhere; }
+.course-module { width: 100%; max-width: 1120px; min-width: 0; }
+.course-module-head { display: grid; gap: 8px; }
+.course-prerequisites { color: var(--caution); }
+.course-stage { min-width: 0; overflow-wrap: anywhere; }
+.course-stage h2 { margin: 0 0 14px; }
+.course-stage + .course-stage { margin-top: 16px; }
+.course-stage pre, .course-stage .table-wrap { max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+.course-stage table { min-width: 560px; }
+.course-checklist, .course-outline { display: grid; gap: 8px; padding-left: 22px; }
+.course-lab-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+.course-source-list { display: grid; gap: 7px; margin: 14px 0 0; padding: 0; list-style: none; }
+.course-source-list li { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--hairline-soft); padding-top: 7px; }
+.course-source-list small { color: var(--faint); overflow-wrap: anywhere; text-align: right; }
+.course-linked-callout { border-left: 3px solid var(--data); }
+.course-linked-callout h2 { margin: 6px 0; }
+.course-artifact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.course-artifact { min-width: 0; border: 1px solid var(--hairline-soft); border-radius: 8px; background: var(--paper-2); padding: 14px; overflow-wrap: anywhere; }
+.course-artifact h3 { margin: 7px 0; }
+.course-checkpoint-form, .course-artifact-fields, .course-offline, .course-self-review, .course-oral-grid { display: grid; gap: 12px; }
+.course-checkpoint-form label, .course-artifact label, .course-offline label, .grounded-response { display: grid; gap: 5px; min-width: 0; color: var(--muted); font-size: 12px; }
+.course-checkpoint-form textarea, .course-artifact textarea, .course-artifact input, .course-artifact select, .course-offline textarea, .grounded-response textarea { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--hairline); border-radius: 7px; background: var(--paper); color: var(--ink); padding: 9px; font: inherit; }
+.course-checkpoint-form textarea, .course-artifact textarea, .course-offline textarea, .grounded-response textarea { min-height: 88px; resize: vertical; }
+.course-artifact fieldset, .course-self-review fieldset { display: grid; gap: 8px; min-width: 0; border: 1px solid var(--hairline-soft); border-radius: 7px; padding: 10px; }
+.course-artifact fieldset label, .course-self-review fieldset label { display: flex; align-items: flex-start; gap: 7px; }
+.course-artifact fieldset small { display: block; margin-left: auto; overflow-wrap: anywhere; color: var(--faint); }
+.course-artifact-actions, .grounded-mode-switch { display: flex; flex-wrap: wrap; gap: 8px; }
+.grounded-turns, .grounded-current { display: grid; gap: 8px; }
+.grounded-turn { border-top: 1px solid var(--hairline-soft); padding-top: 10px; }
+.course-online-debrief, .course-offline { border-top: 1px solid var(--hairline-soft); padding-top: 12px; }
+
+@media (max-width: 480px) {
+  .course-mission-grid { grid-template-columns: minmax(0, 1fr); }
+  .course-facts { align-items: flex-start; flex-direction: column; }
+  .course-mission { padding: 16px; }
+  .course-source-list li { align-items: flex-start; flex-direction: column; }
+  .course-source-list small { text-align: left; }
+  .course-artifact-grid { grid-template-columns: minmax(0, 1fr); }
+  .course-artifact { padding: 12px; }
+  .course-stage table { min-width: 480px; }
+}
+
 @media (max-width: 820px) {
   .shell { flex-direction: column; }
   .rail { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 6px; padding: 14px 16px; }
+  .environment-dev .rail { top: auto; height: auto; }
   .rail .brand { padding: 0 8px 0 0; }
   .navlink { padding: 7px 10px; font-size: 13px; gap: 8px; }
   .rail .spacer, .status-strip { display: none; }

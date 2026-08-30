@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import Markdown from "../components/Markdown";
 import ReviewCard from "../components/ReviewCard";
+import GroundedTutorPanel, { GroundedTutorTurn } from "../components/GroundedTutorPanel";
 import { api, Card, SubmitResult, trackClass } from "../api";
 
 type ChatMode = "tutor" | "quiz";
-type ChatMessage = { role: "user" | "assistant"; content: string };
 
 function LessonToolbar({ nav, completed, onToggle }: any) {
   return (
@@ -140,81 +140,45 @@ export default function TopicDetail() {
 
 function TopicChat({ topic }: { topic: any }) {
   const [mode, setMode] = useState<ChatMode>("tutor");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const endRef = useRef<HTMLDivElement>(null);
+  const [openingPrompt, setOpeningPrompt] = useState(`What would you like to explore about ${topic.title}?`);
+  const modeRequest = useRef(0);
 
   useEffect(() => {
     setMode("tutor");
-    setMessages([]);
-    setInput("");
-    setBusy(false);
+    setOpeningPrompt(`What would you like to explore about ${topic.title}?`);
   }, [topic.id]);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "nearest" });
-  }, [messages, busy]);
+  useEffect(() => () => { modeRequest.current += 1; }, []);
 
   const lessonContext = `Topic: ${topic.title}\nTrack: ${topic.track}\nSummary: ${topic.summary || ""}\nLesson:\n${topic.lesson_md}`;
   const quizInstructions = `${lessonContext}\n\nYou are conducting a rigorous oral quiz on only this topic. Ask exactly one question at a time. After each learner answer, briefly state what was correct or missing, then ask one harder follow-up. Do not reveal an answer before the learner attempts it. Keep each turn concise.`;
 
   async function switchMode(next: ChatMode) {
+    const action = ++modeRequest.current;
     setMode(next);
-    setMessages([]);
-    setInput("");
-    if (next === "quiz") {
-      setBusy(true);
-      try {
-        const response = await api.ask("Begin the oral quiz with the first question.", quizInstructions);
-        setMessages([{ role: "assistant", content: response.answer }]);
-      } catch {
-        setMessages([{ role: "assistant", content: "The DGX tutor is unavailable right now." }]);
-      } finally {
-        setBusy(false);
-      }
-    }
-  }
-
-  async function send() {
-    const value = input.trim();
-    if (!value || busy) return;
-    const userMessage: ChatMessage = { role: "user", content: value };
-    const history = messages.slice(-8);
-    setMessages((current) => [...current, userMessage]);
-    setInput("");
-    setBusy(true);
+    if (next === "tutor") return setOpeningPrompt(`What would you like to explore about ${topic.title}?`);
+    setOpeningPrompt("Preparing the first grounded question…");
     try {
-      const context = mode === "quiz" ? quizInstructions : lessonContext;
-      const response = await api.ask(value, context, history);
-      setMessages((current) => [...current, { role: "assistant", content: response.answer }]);
+      const response = await api.ask("Begin the oral quiz with the first question.", quizInstructions);
+      if (action === modeRequest.current) setOpeningPrompt(response.answer);
     } catch {
-      setMessages((current) => [...current, { role: "assistant", content: "The DGX tutor is unavailable right now." }]);
-    } finally {
-      setBusy(false);
+      if (action === modeRequest.current) setOpeningPrompt("The DGX tutor is unavailable right now. Return to Tutor or try Quiz me again.");
     }
   }
 
-  return <section className="panel topic-chat" aria-labelledby="topic-chat-title">
-    <div className="topic-chat-head">
-      <div><span className="eyebrow">DGX · TOPIC GROUNDED</span><h2 id="topic-chat-title">Tutor this topic</h2></div>
-      <div className="topic-chat-modes" role="group" aria-label="Topic chat mode">
-        <button className={`filter-btn${mode === "tutor" ? " on" : ""}`} onClick={() => switchMode("tutor")} disabled={busy}>Tutor</button>
-        <button className={`filter-btn${mode === "quiz" ? " on" : ""}`} onClick={() => switchMode("quiz")} disabled={busy}>Quiz me</button>
-      </div>
+  async function submit(value: string, requestId: string, turns: GroundedTutorTurn[]) {
+    const history = turns.slice(-4).flatMap((turn) => [
+      { role: "assistant", content: turn.prompt }, { role: "user", content: turn.response },
+      { role: "assistant", content: turn.feedback },
+    ]);
+    const response = await api.ask(value, mode === "quiz" ? quizInstructions : lessonContext, history);
+    return { id: requestId, prompt: openingPrompt, response: value, feedback: response.answer, nextQuestion: mode === "quiz" ? "Respond to the deeper question in the feedback above." : "What would you like to examine next?" };
+  }
+
+  return <>
+    <div className="topic-chat-modes grounded-mode-switch" role="group" aria-label="Topic chat mode">
+      <button className={`filter-btn${mode === "tutor" ? " on" : ""}`} onClick={() => switchMode("tutor")}>Tutor</button>
+      <button className={`filter-btn${mode === "quiz" ? " on" : ""}`} onClick={() => switchMode("quiz")}>Quiz me</button>
     </div>
-    <p className="muted">{mode === "quiz" ? "Answer aloud or in writing. The tutor will evaluate and keep increasing the difficulty." : "Ask for an explanation, example, analogy, or deeper technical detail from this lesson."}</p>
-    <div className="topic-chat-log" aria-live="polite">
-      {!messages.length && !busy && <div className="topic-chat-empty">Ask anything about {topic.title}.</div>}
-      {messages.map((message, index) => <div className={`bubble ${message.role === "user" ? "user" : "assistant"}`} key={index}>
-        {message.role === "assistant" ? <div className="md"><Markdown>{message.content}</Markdown></div> : message.content}
-      </div>)}
-      {busy && <div className="bubble assistant"><span className="loading">the DGX tutor is thinking</span></div>}
-      <div ref={endRef} />
-    </div>
-    <div className="topic-chat-input">
-      <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder={mode === "quiz" ? "Answer the tutor's question…" : "Ask about this topic…"} disabled={busy} />
-      <button className="btn primary" onClick={send} disabled={busy || !input.trim()}>Send</button>
-    </div>
-  </section>;
+    <GroundedTutorPanel identityKey={`topic:${topic.id}:${mode}`} eyebrow="DGX · TOPIC GROUNDED" title="Tutor this topic" prompt={openingPrompt} turns={[]} helperText={mode === "quiz" ? "Answer aloud or in writing; each turn stays grounded in this lesson." : "Ask for an explanation, example, analogy, or deeper technical detail from this lesson."} onSubmit={submit} />
+  </>;
 }
