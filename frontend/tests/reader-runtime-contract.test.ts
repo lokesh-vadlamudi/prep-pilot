@@ -25,4 +25,11 @@ describe("reader development runtime contracts", () => {
     expect(readerStyles).toMatch(/\.chat-scroll\s*\{[^}]*flex:\s*1;[^}]*overflow-y:\s*auto;[^}]*min-height:\s*0;/s);
     expect(readerStyles).toMatch(/@media \(max-width: 900px\)[\s\S]*\.book-chat\s*\{[^}]*position:\s*static;[^}]*align-self:\s*stretch;[^}]*top:\s*auto;[^}]*height:\s*auto;[^}]*max-height:\s*none;[^}]*min-height:\s*360px;[^}]*overflow:\s*visible;/s);
   });
+
+  it("keeps sharing state and confirmation visually distinct", () => {
+    expect(readerStyles).toMatch(/\.book-sharing-badge\s*\{[^}]*display:\s*inline-flex;[^}]*border-radius:\s*999px;/s);
+    expect(readerStyles).toMatch(/\.book-sharing-badge\.shared\s*\{[^}]*border-color:\s*var\(--course\);/s);
+    expect(readerStyles).toMatch(/\.book-sharing-badge\.private\s*\{[^}]*color:\s*var\(--faint\);/s);
+    expect(readerStyles).toMatch(/\.book-sharing-confirm\s*\{[^}]*flex-basis:\s*100%;[^}]*border:\s*1px solid var\(--course\);/s);
+  });
 });

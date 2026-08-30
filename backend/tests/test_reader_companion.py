@@ -549,7 +549,7 @@ class ReaderCompanionTests(unittest.IsolatedAsyncioTestCase):
             ]
             session.add_all(sections); session.commit()
             for section in sections: session.refresh(section)
-            self.assertEqual(book_service.serialize_book(session, book, True)["sections"][0]["topic_title"], "Edge")
+            self.assertEqual(book_service.serialize_book(session, book, alice.id, True)["sections"][0]["topic_title"], "Edge")
             self.assertEqual(book_service.retrieve(session, book, "unused", "topic", sections[0].id), [sections[0]])
             self.assertEqual(len(book_service.retrieve(session, book, "unused", "chapter", sections[0].id)), 2)
             self.assertEqual(len(book_service.retrieve(session, book, "retrieval", "book", 99999)), 3)

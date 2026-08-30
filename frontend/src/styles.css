@@ -1372,6 +1372,12 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .book-overview summary > span:last-child { color: var(--course-deep); font: 600 11px var(--mono); text-transform: uppercase; white-space: nowrap; }
 .book-overview p { margin: 12px 0 0; }
 .book-overview-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.book-sharing-badge { display: inline-flex; align-items: center; border: 1px solid var(--hairline-soft); border-radius: 999px; padding: 6px 10px; font: 700 10px var(--mono); text-transform: uppercase; letter-spacing: .04em; }
+.book-sharing-badge.shared { border-color: var(--course); color: var(--course-deep); background: var(--warm-tint); }
+.book-sharing-badge.private { color: var(--faint); background: var(--paper); }
+.book-sharing-confirm { flex-basis: 100%; border: 1px solid var(--course); border-radius: 10px; padding: 12px; background: var(--warm-tint); }
+.book-sharing-confirm p { margin: 0 0 10px; color: var(--ink); }
+.book-sharing-confirm > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .book-reader { padding: 0; overflow: hidden; scroll-margin-top: 20px; }
 .book-reader-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--hairline-soft); background: var(--paper); }
 .book-reader-toolbar .btn { padding: 7px 9px; font-size: 10px; }

@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, date
 from typing import Optional
 
-from sqlalchemy import CheckConstraint
+from sqlalchemy import Boolean, CheckConstraint, Column, text
 from sqlmodel import SQLModel, Field, UniqueConstraint
 
 
@@ -57,7 +57,7 @@ class Concept(SQLModel, table=True):
 
 
 class Book(SQLModel, table=True):
-    """A private, user-uploaded source document."""
+    """A user-uploaded source document that is private unless its owner shares it."""
     __table_args__ = (UniqueConstraint("user_id", "sha256", name="ux_book_user_sha"),)
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(index=True, foreign_key="user.id")
@@ -74,6 +74,10 @@ class Book(SQLModel, table=True):
     error_code: str = ""
     error_message: str = ""
     activated: bool = False
+    shared_with_all: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("0"), index=True),
+    )
     created_at: datetime = Field(default_factory=utcnow)
     updated_at: datetime = Field(default_factory=utcnow)
 

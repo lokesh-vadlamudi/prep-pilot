@@ -42,7 +42,14 @@ describe("inference course API", () => {
   });
 
   it("keeps every public endpoint wrapper executable with its transport contract", async () => {
-    const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } })));
+    const fetchMock = vi.fn((path: string) => Promise.resolve(new Response(JSON.stringify(
+      path === "/api/books/1" ? {
+        id: 1, title: "Book", page_count: 1, access: "owner", is_owner: true,
+        shared_with_all: false, status: "ready", total_sections: 0, completed_sections: 0,
+        generated_lessons: 0, failed_sections: 0, remaining_sections: 0, activated: false,
+        sections: [],
+      } : { ok: true },
+    ), { status: 200, headers: { "content-type": "application/json" } })));
     vi.stubGlobal("fetch", fetchMock);
     const file = new File(["book"], "book.txt", { type: "text/plain" });
     const requests = [
@@ -50,13 +57,15 @@ describe("inference course API", () => {
       () => api.register("pilot", "secret", "invite", "senior", "typescript"), () => api.logout(), () => api.adminAudit(), () => api.health(),
       () => api.today(), () => api.learnNext(), () => api.diagnoseLearnNext(), () => api.roadmap(), () => api.books(), () => api.book(1), () => api.uploadBook(file),
       () => api.activateBook(1), () => api.retryBook(1), () => api.bookChat(1, "question", "section", 2), () => api.bookChatHistory(1), () => api.clearBookChat(1),
-      () => api.bookReaderState(1), () => api.saveBookProgress(1, 3), () => api.saveBookBookmark(1, 3, "Key proof"),
+      () => api.bookPage(1, 1), () => api.bookReaderState(1), () => api.saveBookProgress(1, 3), () => api.saveBookBookmark(1, 3, "Key proof"),
       () => api.deleteBookBookmark(1, 3), () => api.searchBook(1, "GPU + cache"),
       () => api.card(1), () => api.submit({ card_id: 1, user_answer: "answer" }), () => api.progress(), () => api.topics(), () => api.topic(1),
       () => api.topicStatus(1, true), () => api.ask("question", "context", [{ role: "user", content: "prior" }]), () => api.brainHealth(), () => api.generateNow(),
       () => api.problems(), () => api.problem(1), () => api.problemStats(), () => api.problemOfTheDay(), () => api.problemApproach(1), () => api.problemStatus(1, { status: "attempted" }),
       () => api.problemCoach(1, "plan"), () => api.problemHints(1), () => api.starter(1, "python"), () => api.runCode(1, "python", "print(1)"),
       () => api.mentor(1, { language: "python", code: "print(1)", mode: "review" }), () => api.targetStatus(), () => api.setTarget({ daily_problem_target: 1 }),
+      () => api.jobs(), () => api.addJob({ company: "OpenAI", role: "Engineer" }),
+      () => api.updateJob(1, { status: "applied" }), () => api.deleteJob(1), () => api.setJobTarget(2),
       () => api.mockStart({ kind: "system-design" }), () => api.mockReply(1, "reply"), () => api.mockFinish(1), () => api.mockHistory(),
       () => api.courseReconciliationPreview("IC 03", true), () => api.courseReconcile({ request_id: "r" }), () => api.courseDeleteLink(1, { request_id: "r" }),
       () => api.courseSaveArtifact("IC 03", "artifact/1", { request_id: "r" }), () => api.courseCheckpoint("checkpoint/1", { request_id: "r" }),
@@ -64,7 +73,7 @@ describe("inference course API", () => {
       () => api.courseOralComplete("IC 03", { request_id: "r" }), () => api.courseOralReview("IC 03", { request_id: "r" }),
     ];
     for (const request of requests) await request();
-    expect(fetchMock).toHaveBeenCalledTimes(60);
+    expect(fetchMock).toHaveBeenCalledTimes(66);
     const requestPaths = fetchMock.mock.calls as unknown as [string, RequestInit?][];
     expect(requestPaths.some(([path]) => path.includes("IC%2003"))).toBe(true);
     expect(requestPaths.slice(-9).map(([path, options]) => [
@@ -90,6 +99,7 @@ describe("inference course API", () => {
 
     const controller = new AbortController();
     expect(api.bookPageUrl(7, 2)).toBe("/api/books/7/pages/2");
+    await api.bookPage(7, 2, controller.signal);
     await api.bookReaderState(7, controller.signal);
     await api.saveBookProgress(7, 2);
     await api.saveBookBookmark(7, 2, "  keep spacing  ");
@@ -97,12 +107,110 @@ describe("inference course API", () => {
     await api.searchBook(7, "GPU + cache", controller.signal);
 
     expect(fetchMock.mock.calls).toEqual([
+      ["/api/books/7/pages/2", expect.objectContaining({ credentials: "same-origin", signal: controller.signal })],
       ["/api/books/7/reader-state", expect.objectContaining({ credentials: "same-origin", signal: controller.signal })],
       ["/api/books/7/progress", expect.objectContaining({ method: "PUT", body: JSON.stringify({ page: 2 }) })],
       ["/api/books/7/bookmarks/2", expect.objectContaining({ method: "PUT", body: JSON.stringify({ note: "  keep spacing  " }) })],
       ["/api/books/7/bookmarks/2", expect.objectContaining({ method: "DELETE" })],
       ["/api/books/7/search?q=GPU%20%2B%20cache", expect.objectContaining({ credentials: "same-origin", signal: controller.signal })],
     ]);
+  });
+
+  it("returns authenticated page blobs and preserves typed page failures", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(new Blob(["png"], { type: "image/png" }), {
+        status: 200, headers: { "content-type": "image/png" },
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ detail: "Book not found" }), {
+        status: 404, headers: { "content-type": "application/json" },
+      }))
+      .mockResolvedValueOnce(new Response("upstream failed", { status: 500 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        error: { code: "page_unavailable", detail: "No page", retryable: false },
+      }), { status: 503, headers: { "content-type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({}), {
+        status: 401, headers: { "content-type": "application/json" },
+      }))
+      .mockRejectedValueOnce(new TypeError("offline"))
+      .mockRejectedValueOnce(new DOMException("stop", "AbortError")));
+
+    await expect(api.bookPage(4, 2)).resolves.toBeInstanceOf(Blob);
+    await expect(api.bookPage(4, 2)).rejects.toMatchObject({ status: 404, detail: "Book not found" });
+    await expect(api.bookPage(4, 2)).rejects.toMatchObject({ status: 500, code: "http_500", retryable: true });
+    await expect(api.bookPage(4, 2)).rejects.toMatchObject({ status: 503, code: "page_unavailable", retryable: false });
+    await expect(api.bookPage(4, 2)).rejects.toMatchObject({ status: 401, code: "unauthorized", detail: "Your session expired." });
+    await expect(api.bookPage(4, 2)).rejects.toMatchObject({ status: 0, code: "offline" });
+    await expect(api.bookPage(4, 2)).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("validates owner/shared book contracts and sends the sharing mutation exactly", async () => {
+    const response = (value: unknown) => new Response(JSON.stringify(value), {
+      status: 200, headers: { "content-type": "application/json" },
+    });
+    const owner = {
+      id: 1, title: "Mine", page_count: 3, access: "owner", is_owner: true,
+      shared_with_all: false, status: "ready", total_sections: 1, completed_sections: 1,
+      generated_lessons: 1, failed_sections: 0, remaining_sections: 0, activated: false,
+    };
+    const shared = {
+      id: 2, title: "Shared", page_count: 4, access: "shared", is_owner: false,
+      shared_with_all: true,
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response([owner, shared, { ...shared, id: 3, shared_with_all: false }]))
+      .mockResolvedValueOnce(response({ ...shared, sections: [{
+        id: 8, chapter: "Serving", label: "Batching", page_start: 2, page_end: 3,
+        citation: "pages 2-3",
+      }] }))
+      .mockResolvedValueOnce(response({
+        book_id: 1, access: "owner", is_owner: true, shared_with_all: true,
+        updated_at: "now", changed: true,
+      }))
+      .mockResolvedValueOnce(response({ ...shared, status: "ready" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.books()).resolves.toEqual([owner, shared]);
+    await expect(api.book(2)).resolves.toEqual({ ...shared, sections: [expect.objectContaining({ id: 8 })] });
+    await expect(api.shareBook(1, true)).resolves.toMatchObject({ shared_with_all: true, changed: true });
+    expect(fetchMock.mock.calls[2]).toEqual([
+      "/api/books/1/sharing",
+      expect.objectContaining({ method: "PUT", body: JSON.stringify({ shared_with_all: true }) }),
+    ]);
+    await expect(api.book(2)).rejects.toMatchObject({ code: "invalid_book_response" });
+  });
+
+  it("rejects malformed owner and shared book details without leaking partial records", async () => {
+    const response = (value: unknown) => new Response(JSON.stringify(value), {
+      status: 200, headers: { "content-type": "application/json" },
+    });
+    const shared = {
+      id: 2, title: "Shared", page_count: 4, access: "shared", is_owner: false,
+      shared_with_all: true,
+    };
+    const owner = {
+      id: 1, title: "Mine", page_count: 3, access: "owner", is_owner: true,
+      shared_with_all: false, status: "ready", total_sections: 1, completed_sections: 1,
+      generated_lessons: 1, failed_sections: 0, remaining_sections: 0, activated: false,
+    };
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(response(null))
+      .mockResolvedValueOnce(response({ id: 0, title: "Invalid", page_count: 1 }))
+      .mockResolvedValueOnce(response({ ...shared, sections: [{
+        id: 8, chapter: "Serving", label: "Batching", page_start: 2, page_end: 2,
+        citation: "private", concept_id: 99,
+      }] }))
+      .mockResolvedValueOnce(response({ ...shared, sections: [{
+        id: 8, chapter: "Serving", label: "Batching", page_start: 3, page_end: 2, citation: "bad",
+      }] }))
+      .mockResolvedValueOnce(response({ ...owner, activated: "false", sections: [] }))
+      .mockResolvedValueOnce(response({ ...owner, sections: "private" }))
+      .mockResolvedValueOnce(response({ ...shared, sections: null }))
+      .mockResolvedValueOnce(response({ records: [owner] })));
+
+    for (const id of [2, 2, 2, 2, 1, 1, 2]) {
+      await expect(api.book(id)).rejects.toMatchObject({ code: "invalid_book_response" });
+    }
+    await expect(api.books()).resolves.toEqual([]);
   });
 
   it("defensively decodes typed chat citations before exposing them to the reader", async () => {

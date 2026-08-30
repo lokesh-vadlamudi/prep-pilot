@@ -12,6 +12,7 @@ from pathlib import Path
 
 import fitz
 from fastapi import HTTPException, UploadFile
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from . import tutor
@@ -43,6 +44,17 @@ class ReaderContextError(Exception):
 
 def owned_book(session: Session, user_id: int, book_id: int) -> Book:
     book = session.exec(select(Book).where(Book.id == book_id, Book.user_id == user_id)).first()
+    if not book:
+        raise HTTPException(404, "Book not found")
+    return book
+
+
+def readable_book(session: Session, user_id: int, book_id: int) -> Book:
+    """Return a book the viewer owns or that its owner explicitly shared."""
+    book = session.exec(select(Book).where(
+        Book.id == book_id,
+        or_(Book.user_id == user_id, Book.shared_with_all == True),  # noqa: E712
+    )).first()
     if not book:
         raise HTTPException(404, "Book not found")
     return book
@@ -387,12 +399,32 @@ def activate(session: Session, book: Book) -> int:
     return added
 
 
-def serialize_book(session: Session, book: Book, detail: bool = False) -> dict:
+def serialize_book(session: Session, book: Book, viewer_id: int, detail: bool = False) -> dict:
+    is_owner = book.user_id == viewer_id
+    if not is_owner:
+        if not book.shared_with_all:
+            raise HTTPException(404, "Book not found")
+        result = {
+            "id": book.id, "title": book.title, "page_count": book.page_count,
+            "access": "shared", "is_owner": False, "shared_with_all": True,
+        }
+        if detail:
+            rows = session.exec(select(IngestionSection).where(
+                IngestionSection.book_id == book.id,
+            ).order_by(IngestionSection.ordinal)).all()
+            result["sections"] = [{
+                "id": section.id, "chapter": section.chapter, "label": section.label,
+                "page_start": section.page_start, "page_end": section.page_end,
+                "citation": section.citation,
+            } for section in rows]
+        return result
+
     states = session.exec(select(IngestionSection.status).where(IngestionSection.book_id == book.id)).all()
     generated = sum(state == "complete" for state in states)
     failed = sum(state == "failed" for state in states)
     remaining = sum(state in ("pending", "processing") for state in states)
     result = {"id": book.id, "title": book.title, "status": book.status, "page_count": book.page_count,
+              "access": "owner", "is_owner": True, "shared_with_all": book.shared_with_all,
               "total_sections": book.total_sections, "completed_sections": book.completed_sections,
               "generated_lessons": generated, "failed_sections": failed, "remaining_sections": remaining,
               "activated": book.activated, "error_code": book.error_code, "error_message": book.error_message}
