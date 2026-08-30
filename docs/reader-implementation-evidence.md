@@ -51,10 +51,10 @@ Every touched frontend module meets the 95% changed-line, line, statement, funct
 
 - `bash -n deploy/deploy-dev.sh` and `git diff --check` pass.
 - The dev deploy contract blocks untracked backend/frontend payload, attests explicit development database and book-storage isolation before sync/reload, preserves the dev `.env`, and requires the same isolation booleans from health afterward.
-- No deployment, commit, push, or staging was performed. The index is empty. The pre-existing `.claude/settings.json` remains untracked and untouched.
+- The reader was committed from an explicit source/test allowlist and deployed only to the isolated development service. No push was performed. The pre-existing `.claude/settings.json` remains untracked and untouched.
 - Production configuration/data and Inference course implementation/data remain in place for rollback. Only visible UI entry points are removed or redirected to Read a book.
 - Independent G5 re-review passed the exact 50-result truncation contract, typed chat/citation response schemas, evidence, correctness, and security checks.
-- Independent G6 same-origin browser verification passed at 1440x900: after 750px page scroll, the fixed dev banner ended at 34px and the chat panel remained at 34px with internal chat scrolling. Resume, bookmarks, literal search, live page-grounded chat/citation jumps, mobile stacking, owner isolation, and private no-store responses also passed.
-- Remote dev deployment was deliberately not claimed at the implementation frontier and remains the final release action.
+- Independent G6 same-origin browser verification passed the full release matrix with a rights-safe synthetic PDF and two disposable users: visible page-source comparison, input/zoom, fresh-session resume, bookmark-note persistence, unique/metacharacter/no-result search, grounded and insufficient-evidence chat, citation jumps, complete cross-owner isolation, image retry, DGX outage recovery without state loss, desktop sticky/internal scrolling, and mobile stacking.
+- Dev health reports the committed release, development environment, scheduler disabled, and both storage-isolation attestations true. Production remains on its prior release with its database fingerprint and Tailscale route unchanged.
 
-Implementation verdict: RDR-00 through RDR-07, G4, G5, and G6 are complete. Release readiness is pending only the authorized isolated dev deployment and post-deploy attestation.
+Implementation verdict: RDR-00 through RDR-07, G4, G5, G6, and the isolated dev deployment/post-deploy attestations are complete. Verdict: dev-ready only; production was not released.
