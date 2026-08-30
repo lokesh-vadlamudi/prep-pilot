@@ -184,6 +184,67 @@ export type LearningDiagnosis = {
   check_question: string;
 };
 
+export type BookCitation = {
+  section_id: number | null;
+  citation: string;
+  page_start: number;
+  page_end: number;
+};
+export type BookChatResponse = { answer: string; citations: BookCitation[] };
+export type BookChatMessage = { role: string; content: string; citations: BookCitation[] };
+
+export type BookBookmark = {
+  page: number;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BookReaderState = {
+  book_id: number;
+  page: number;
+  progress_updated_at: string | null;
+  bookmarks: BookBookmark[];
+};
+
+export type BookSearchResult = { page: number; snippet: string; match_count: number };
+export type BookSearchResponse = { query: string; results: BookSearchResult[]; truncated: boolean };
+
+function decodeBookCitation(value: unknown): BookCitation | null {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Record<string, unknown>;
+  if (typeof item.citation !== "string" || !Number.isInteger(item.page_start) || !Number.isInteger(item.page_end)) return null;
+  const start = item.page_start as number;
+  const end = item.page_end as number;
+  if (start < 1 || start > end) return null;
+  if (item.section_id !== null && item.section_id !== undefined && !Number.isInteger(item.section_id)) return null;
+  return {
+    section_id: item.section_id == null ? null : item.section_id as number,
+    citation: item.citation,
+    page_start: start,
+    page_end: end,
+  };
+}
+
+function decodeBookCitations(value: unknown): BookCitation[] {
+  return Array.isArray(value) ? value.map(decodeBookCitation).filter((item): item is BookCitation => item !== null) : [];
+}
+
+function decodeBookChatResponse(value: unknown): BookChatResponse {
+  const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return { answer: typeof item.answer === "string" ? item.answer : "", citations: decodeBookCitations(item.citations) };
+}
+
+function decodeBookChatHistory(value: unknown): BookChatMessage[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const item = row as Record<string, unknown>;
+    if (typeof item.role !== "string" || typeof item.content !== "string") return [];
+    return [{ role: item.role, content: item.content, citations: decodeBookCitations(item.citations) }];
+  });
+}
+
 export type SubmitResult = {
   grade: number;
   correct: boolean;
@@ -220,10 +281,21 @@ export const api = {
   },
   activateBook: (id: number) => req(`/api/books/${id}/activate`, { method: "POST" }),
   retryBook: (id: number) => req(`/api/books/${id}/retry`, { method: "POST" }),
-  bookChat: (id: number, question: string, scope = "book", section_id?: number) =>
-    req(`/api/books/${id}/chat`, { method: "POST", headers: json, body: JSON.stringify({ question, scope, section_id }) }),
-  bookChatHistory: (id: number) => req(`/api/books/${id}/chat`),
+  bookPageUrl: (id: number, page: number) => `/api/books/${id}/pages/${page}`,
+  bookChat: (id: number, question: string, scope = "book", section_id?: number, page?: number): Promise<BookChatResponse> =>
+    req(`/api/books/${id}/chat`, { method: "POST", headers: json, body: JSON.stringify({ question, scope, section_id, page }) }).then(decodeBookChatResponse),
+  bookChatHistory: (id: number): Promise<BookChatMessage[]> => req(`/api/books/${id}/chat`).then(decodeBookChatHistory),
   clearBookChat: (id: number) => req(`/api/books/${id}/chat`, { method: "DELETE" }),
+  bookReaderState: (id: number, signal?: AbortSignal): Promise<BookReaderState> =>
+    req(`/api/books/${id}/reader-state`, { signal }),
+  saveBookProgress: (id: number, page: number) =>
+    req(`/api/books/${id}/progress`, { method: "PUT", headers: json, body: JSON.stringify({ page }) }),
+  saveBookBookmark: (id: number, page: number, note: string) =>
+    req(`/api/books/${id}/bookmarks/${page}`, { method: "PUT", headers: json, body: JSON.stringify({ note }) }),
+  deleteBookBookmark: (id: number, page: number) =>
+    req(`/api/books/${id}/bookmarks/${page}`, { method: "DELETE" }),
+  searchBook: (id: number, query: string, signal?: AbortSignal): Promise<BookSearchResponse> =>
+    req(`/api/books/${id}/search?q=${encodeURIComponent(query)}`, { signal }),
   card: (id: number) => req(`/api/card/${id}`),
   submit: (body: { card_id: number; user_answer?: string; self_grade?: number }): Promise<SubmitResult> =>
     req("/api/submit", { method: "POST", headers: json, body: JSON.stringify(body) }),

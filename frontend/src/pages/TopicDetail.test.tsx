@@ -104,7 +104,7 @@ describe("TopicDetail grounded tutor", () => {
     fireEvent.click(await screen.findByRole("button", { name: /start quiz/i }));
     fireEvent.click(screen.getByRole("button", { name: "Finish card" }));
     await waitFor(() => expect(api.topicStatus).toHaveBeenCalledWith(7, true));
-    expect((await screen.findAllByRole("link", { name: /finish/i })).every((link) => link.getAttribute("href") === "/make-me-learn")).toBe(true);
+    expect((await screen.findAllByRole("link", { name: /finish/i })).every((link) => link.getAttribute("href") === "/read")).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: /review lesson/i }));
     expect(await screen.findByText("Serve work continuously.")).toBeTruthy();
   });

@@ -14,21 +14,19 @@ vi.mock("./pages/Mock", () => ({ default: () => <h1>Mock page</h1> }));
 vi.mock("./pages/Problems", () => ({ default: () => <h1>Problems page</h1> }));
 vi.mock("./pages/Ask", () => ({ default: () => <h1>Ask page</h1> }));
 vi.mock("./pages/Progress", () => ({ default: () => <h1>Progress page</h1> }));
-vi.mock("./pages/MakeMeLearn", () => ({ default: () => <h1>Learn page</h1> }));
+vi.mock("./pages/MakeMeLearn", () => ({ default: () => <h1>Read page</h1> }));
 vi.mock("./pages/AdminDashboard", () => ({ default: () => <h1>Admin page</h1> }));
-vi.mock("./pages/InferenceModule", () => ({ default: () => <h1>Module page</h1> }));
-vi.mock("./pages/InferenceLinkedTopic", () => ({ default: () => <h1>Linked page</h1> }));
 vi.mock("./pages/Solve", () => ({ default: ({ theme }: { theme: string }) => <h1>Solve page · {theme}</h1> }));
 
 vi.mock("./api", () => ({
   api: {
-    me: vi.fn(), health: vi.fn(), brainHealth: vi.fn(), today: vi.fn(), logout: vi.fn(), courseOverview: vi.fn(),
+    me: vi.fn(), health: vi.fn(), brainHealth: vi.fn(), today: vi.fn(), logout: vi.fn(),
   },
   newRequestId: vi.fn(() => "request-fixed"),
   describeApiError: vi.fn(() => "Unavailable"),
 }));
 
-describe("course app shell", () => {
+describe("app shell", () => {
   afterEach(cleanup);
   beforeEach(() => {
     vi.clearAllMocks();
@@ -39,26 +37,27 @@ describe("course app shell", () => {
     vi.mocked(api.brainHealth).mockResolvedValue({ online: true, model: "local" });
     vi.mocked(api.today).mockResolvedValue({ streak: 4 } as any);
     vi.mocked(api.logout).mockResolvedValue({ ok: true });
-    vi.mocked(api.courseOverview).mockResolvedValue({ key: "inference-engineering", version: "v1", title: "Inference Flight School: Token to Traffic", audience: "builder", enrolled: true, modules: [] });
   });
 
-  it("adds the course route and omits the shared streak fetch and row on descendants", async () => {
-    render(<MemoryRouter initialEntries={["/courses/inference-engineering"]}><App /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "Inference Flight School: Token to Traffic" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Inference course" })).toBeTruthy();
-    expect(api.today).not.toHaveBeenCalled();
-    expect(document.body.textContent).not.toMatch(/streak/i);
+  it("adds the reader route and removes the inference course from navigation", async () => {
+    render(<MemoryRouter initialEntries={["/read"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Read page" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Read a book" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Inference course" })).toBeNull();
+    await waitFor(() => expect(api.today).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("4d")).toBeTruthy();
     expect(document.querySelector("main#main-content")).toBeTruthy();
   });
 
   it.each([
-    ["/courses/inference-engineering/IC-03", "Module page"],
-    ["/courses/inference-engineering/IC-03/linked-topics/17", "Linked page"],
-  ])("suppresses streak state throughout course descendant %s", async (path, heading) => {
+    "/make-me-learn",
+    "/courses/inference-engineering",
+    "/courses/inference-engineering/IC-03",
+    "/courses/inference-engineering/IC-03/linked-topics/17",
+  ])("redirects the retired route %s to the reader", async (path) => {
     render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: heading })).toBeTruthy();
-    expect(api.today).not.toHaveBeenCalled();
-    expect(screen.queryByText(/streak/i)).toBeNull();
+    expect(await screen.findByRole("heading", { name: "Read page" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Inference course" })).toBeNull();
   });
 
   it("keeps standard topic and lazy solve navigation behavior", async () => {

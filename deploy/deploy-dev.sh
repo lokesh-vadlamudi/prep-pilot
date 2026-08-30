@@ -17,6 +17,11 @@ if ! git -C "$HERE" diff --quiet || ! git -C "$HERE" diff --cached --quiet; then
   echo "Dev deploy blocked: commit tracked changes first." >&2
   exit 1
 fi
+UNTRACKED_PAYLOAD="$(git -C "$HERE" ls-files --others --exclude-standard -- backend frontend deploy)"
+if [ -n "$UNTRACKED_PAYLOAD" ]; then
+  echo "Dev deploy blocked: untracked backend/frontend/deploy source would enter the deployment payload." >&2
+  exit 1
+fi
 if [ "$BRANCH" != "main" ] && [ "${PREPPILOT_DEV_ALLOW_BRANCH:-0}" != "1" ]; then
   echo "Dev deploy blocked: $BRANCH is not main. Set PREPPILOT_DEV_ALLOW_BRANCH=1 for a branch preview." >&2
   exit 1
@@ -28,6 +33,16 @@ if [ "$BRANCH" = "main" ]; then
     exit 1
   fi
 fi
+
+echo "==> 0/6  Attesting preserved isolated development storage"
+ssh "$MINI" '
+  set -e
+  test -f ~/prep-pilot-dev/backend/.env
+  python3 - --backend "$HOME/prep-pilot-dev/backend" --env-file "$HOME/prep-pilot-dev/backend/.env"
+' < "$HERE/deploy/check-dev-storage.py" || {
+  echo "Dev deploy blocked: preserved development storage isolation attestation failed." >&2
+  exit 1
+}
 
 echo "==> 1/6  Building dev revision $SHA ($BRANCH)"
 ( cd "$HERE/frontend" && npm install --silent && npm run build )
@@ -58,11 +73,11 @@ ssh "$MINI" '
     echo "dev not healthy (check ~/Library/Logs/preppilot-dev.log)" >&2
     exit 1
   }
-  printf "%s" "$HEALTH" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get(\"environment\") == \"development\" and d.get(\"scheduler_enabled\") is False" || {
-    echo "dev isolation check failed: $HEALTH" >&2
+  printf "%s" "$HEALTH" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get(\"environment\") == \"development\" and d.get(\"scheduler_enabled\") is False and d.get(\"dev_database_isolated\") is True and d.get(\"dev_book_storage_isolated\") is True" || {
+    echo "dev isolation health attestation failed" >&2
     exit 1
   }
-  echo "$HEALTH <- isolated dev healthy"
+  echo "isolated dev health attestations passed"
 '
 
 echo "==> 6/6  Exposing dev over Tailscale HTTPS :$SERVE_PORT"

@@ -109,6 +109,34 @@ class BookChatMessage(SQLModel, table=True):
     created_at: datetime = Field(default_factory=utcnow)
 
 
+class BookReadingProgress(SQLModel, table=True):
+    """Last committed page for one user-owned book."""
+    __table_args__ = (
+        UniqueConstraint("user_id", "book_id", name="ux_book_progress_user_book"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    book_id: int = Field(index=True, foreign_key="book.id")
+    page_number: int = 1
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
+class BookBookmark(SQLModel, table=True):
+    """One private optional note for one page in a user-owned book."""
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "book_id", "page_number", name="ux_bookmark_user_book_page",
+        ),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(index=True, foreign_key="user.id")
+    book_id: int = Field(index=True, foreign_key="book.id")
+    page_number: int
+    note: Optional[str] = None
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
+
+
 class Card(SQLModel, table=True):
     """A spaced-repetition question attached to a concept.
 

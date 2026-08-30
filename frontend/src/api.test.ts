@@ -50,6 +50,8 @@ describe("inference course API", () => {
       () => api.register("pilot", "secret", "invite", "senior", "typescript"), () => api.logout(), () => api.adminAudit(), () => api.health(),
       () => api.today(), () => api.learnNext(), () => api.diagnoseLearnNext(), () => api.roadmap(), () => api.books(), () => api.book(1), () => api.uploadBook(file),
       () => api.activateBook(1), () => api.retryBook(1), () => api.bookChat(1, "question", "section", 2), () => api.bookChatHistory(1), () => api.clearBookChat(1),
+      () => api.bookReaderState(1), () => api.saveBookProgress(1, 3), () => api.saveBookBookmark(1, 3, "Key proof"),
+      () => api.deleteBookBookmark(1, 3), () => api.searchBook(1, "GPU + cache"),
       () => api.card(1), () => api.submit({ card_id: 1, user_answer: "answer" }), () => api.progress(), () => api.topics(), () => api.topic(1),
       () => api.topicStatus(1, true), () => api.ask("question", "context", [{ role: "user", content: "prior" }]), () => api.brainHealth(), () => api.generateNow(),
       () => api.problems(), () => api.problem(1), () => api.problemStats(), () => api.problemOfTheDay(), () => api.problemApproach(1), () => api.problemStatus(1, { status: "attempted" }),
@@ -62,7 +64,7 @@ describe("inference course API", () => {
       () => api.courseOralComplete("IC 03", { request_id: "r" }), () => api.courseOralReview("IC 03", { request_id: "r" }),
     ];
     for (const request of requests) await request();
-    expect(fetchMock).toHaveBeenCalledTimes(55);
+    expect(fetchMock).toHaveBeenCalledTimes(60);
     const requestPaths = fetchMock.mock.calls as unknown as [string, RequestInit?][];
     expect(requestPaths.some(([path]) => path.includes("IC%2003"))).toBe(true);
     expect(requestPaths.slice(-9).map(([path, options]) => [
@@ -78,6 +80,75 @@ describe("inference course API", () => {
       ["/api/courses/inference-engineering/oral/IC%2003/complete", "POST", { request_id: "r" }],
       ["/api/courses/inference-engineering/oral/IC%2003/review", "POST", { request_id: "r" }],
     ]);
+  });
+
+  it("keeps private reader state, bookmark, progress, and literal-search request shapes exact", async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ ok: true }), {
+      status: 200, headers: { "content-type": "application/json" },
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const controller = new AbortController();
+    expect(api.bookPageUrl(7, 2)).toBe("/api/books/7/pages/2");
+    await api.bookReaderState(7, controller.signal);
+    await api.saveBookProgress(7, 2);
+    await api.saveBookBookmark(7, 2, "  keep spacing  ");
+    await api.deleteBookBookmark(7, 2);
+    await api.searchBook(7, "GPU + cache", controller.signal);
+
+    expect(fetchMock.mock.calls).toEqual([
+      ["/api/books/7/reader-state", expect.objectContaining({ credentials: "same-origin", signal: controller.signal })],
+      ["/api/books/7/progress", expect.objectContaining({ method: "PUT", body: JSON.stringify({ page: 2 }) })],
+      ["/api/books/7/bookmarks/2", expect.objectContaining({ method: "PUT", body: JSON.stringify({ note: "  keep spacing  " }) })],
+      ["/api/books/7/bookmarks/2", expect.objectContaining({ method: "DELETE" })],
+      ["/api/books/7/search?q=GPU%20%2B%20cache", expect.objectContaining({ credentials: "same-origin", signal: controller.signal })],
+    ]);
+  });
+
+  it("defensively decodes typed chat citations before exposing them to the reader", async () => {
+    const reply = (value: unknown) => new Response(JSON.stringify(value), {
+      status: 200, headers: { "content-type": "application/json" },
+    });
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(reply({
+        answer: "Grounded",
+        citations: [
+          { section_id: 2, citation: "page 2", page_start: 2, page_end: 2 },
+          { section_id: null, citation: "nullable", page_start: 1, page_end: 1 },
+          { section_id: null, citation: "boolean", page_start: true, page_end: true },
+          { section_id: null, citation: "reverse", page_start: 3, page_end: 2 },
+          { section_id: "2", citation: "section string", page_start: 2, page_end: 2 },
+          { section_id: null, citation: "zero", page_start: 0, page_end: 1 },
+          { section_id: null, citation: 4, page_start: 1, page_end: 1 },
+          null,
+        ],
+      }))
+      .mockResolvedValueOnce(reply(null))
+      .mockResolvedValueOnce(reply({ answer: 4, citations: {} }))
+      .mockResolvedValueOnce(reply({ ok: true }))
+      .mockResolvedValueOnce(reply([
+        null, 4, { role: "assistant" }, { content: "missing role" },
+        { role: 4, content: "bad role" }, { role: "assistant", content: 4 },
+        { role: "assistant", content: "History", citations: [
+          { citation: "page 1", page_start: 1, page_end: 1 },
+          { citation: "fraction", page_start: 1.5, page_end: 2 },
+        ] },
+      ])));
+
+    await expect(api.bookChat(7, "question", "page", undefined, 2)).resolves.toEqual({
+      answer: "Grounded",
+      citations: [
+        { section_id: 2, citation: "page 2", page_start: 2, page_end: 2 },
+        { section_id: null, citation: "nullable", page_start: 1, page_end: 1 },
+      ],
+    });
+    await expect(api.bookChat(7, "null")).resolves.toEqual({ answer: "", citations: [] });
+    await expect(api.bookChat(7, "wrong types")).resolves.toEqual({ answer: "", citations: [] });
+    await expect(api.bookChatHistory(7)).resolves.toEqual([]);
+    await expect(api.bookChatHistory(7)).resolves.toEqual([{
+      role: "assistant", content: "History",
+      citations: [{ section_id: null, citation: "page 1", page_start: 1, page_end: 1 }],
+    }]);
   });
 
   it("describes every typed course failure without numeric learner feedback", () => {

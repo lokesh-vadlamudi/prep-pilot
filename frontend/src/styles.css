@@ -1252,10 +1252,11 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .s4 .rhythm, .s5 .rhythm { grid-template-columns: 1fr; gap: 4px; }
 .s4 .rhythm-day, .s5 .rhythm-day { flex-direction: row; justify-content: space-between; align-items: center; padding: 6px 10px; }
 
-/* Make Me Learn */
+/* Read a book */
 .book-workspace { display: grid; grid-template-columns: minmax(0, 7fr) minmax(280px, 3fr); grid-template-rows: auto auto; grid-template-areas: "main chat" "journey chat"; min-height: 100vh; }
 .book-main { grid-area: main; padding: 32px; min-width: 0; }
-.book-chat { grid-area: chat; position: sticky; top: 0; height: 100vh; box-sizing: border-box; padding: 28px 22px; border-left: 1px solid var(--hairline-soft); background: var(--chat-bg); display: flex; flex-direction: column; gap: 14px; }
+.book-chat { grid-area: chat; position: sticky; align-self: start; top: 0; height: 100vh; max-height: 100vh; min-height: 0; overflow: hidden; box-sizing: border-box; padding: 28px 22px; border-left: 1px solid var(--hairline-soft); background: var(--chat-bg); display: flex; flex-direction: column; gap: 14px; }
+.environment-dev .book-chat { top: 34px; height: calc(100vh - 34px); max-height: calc(100vh - 34px); }
 .chapter-journey { grid-area: journey; }
 .book-page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px 28px; }
 .book-page-head > div { min-width: 0; }
@@ -1265,21 +1266,44 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 .book-picker button.active { border-color: var(--course); background: var(--warm-tint); }
 .book-picker small, .topic-node small { display: block; color: var(--faint); margin-top: 4px; }
 .book-empty { padding: 44px; text-align: center; border-style: dashed; }
-.book-overview { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; }
-.book-overview progress { grid-column: 1 / -1; width: 100%; accent-color: var(--course); }
-.continue-card { background: linear-gradient(140deg, var(--warm-deep), var(--paper) 60%); }
-.session-modes { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; color: var(--faint); font-size: 12px; }
+.book-overview { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.book-overview > div { min-width: min(100%, 320px); flex: 1; }
+.book-overview h2, .book-overview p { margin: 4px 0; }
+.book-reader { padding: 0; overflow: hidden; scroll-margin-top: 20px; }
+.book-reader-toolbar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--hairline-soft); background: var(--paper); }
+.book-reader-toolbar label { color: var(--muted); font: 600 12px var(--mono); }
+.book-reader-toolbar input { width: 58px; margin: 0 5px; border: 1px solid var(--hairline); border-radius: 6px; background: var(--paper); color: var(--ink); padding: 6px; text-align: center; }
+.book-zoom { display: flex; align-items: center; gap: 8px; margin-left: auto; color: var(--faint); font: 600 11px var(--mono); }
+.book-reader-surface { position: relative; height: min(76vh, 920px); min-height: 520px; overflow: auto; padding: 24px; background: #dfe3e8; text-align: center; }
+.book-reader-surface img { display: block; height: auto; max-width: none; margin: 0 auto; border-radius: 2px; background: white; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2); }
+.book-page-loading { position: absolute; z-index: 1; top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 8px; background: var(--paper); padding: 12px 16px; box-shadow: var(--shadow-card); }
+.book-companion-tools { display: grid; grid-template-columns: minmax(0, 3fr) minmax(220px, 2fr); gap: 12px; padding: 12px; border-bottom: 1px solid var(--hairline-soft); background: var(--paper); }
+.book-search, .book-bookmarks { display: grid; align-content: start; gap: 7px; min-width: 0; }
+.book-search > label, .book-bookmarks > label { color: var(--faint); font: 600 10px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
+.book-search > div:first-of-type { display: flex; gap: 7px; }
+.book-search input, .book-bookmarks textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--hairline-soft); border-radius: 7px; background: var(--paper); color: var(--ink); padding: 8px; }
+.book-bookmarks textarea { min-height: 62px; resize: vertical; }
+.book-search-status, .bookmark-list { display: grid; gap: 6px; }
+.book-search-status > button, .bookmark-list > button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; width: 100%; border: 1px solid var(--hairline-soft); border-radius: 7px; background: var(--paper); color: var(--ink); padding: 7px; text-align: left; }
+.book-search-status > button span, .bookmark-list > button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.book-search-status small { color: var(--faint); }
+.bookmark-actions { display: flex; gap: 7px; }
 .topic-path { display: grid; gap: 8px; }
-.topic-node { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 12px; border-left: 3px solid var(--hairline-soft); background: #faf9f6; }
+.topic-node { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: 12px; padding: 12px; border-left: 3px solid var(--hairline-soft); background: var(--paper); }
 .topic-node.complete { border-left-color: var(--pass); }
 .topic-node.processing { border-left-color: var(--course); }
 .topic-node > span { color: var(--faint); font-size: 11px; text-transform: uppercase; }
+.book-chat-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.book-chat-head h2 { margin: 4px 0 0; }
+.book-chat-scope { display: grid; gap: 6px; color: var(--faint); font: 600 10px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
 .book-chat select, .chat-input textarea { width: 100%; border: 1px solid var(--hairline-soft); border-radius: 7px; background: var(--paper); padding: 9px; box-sizing: border-box; }
-.chat-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; min-height: 160px; }
+.chat-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 .chat-msg { border-radius: 8px; padding: 10px; background: var(--paper); border: 1px solid var(--hairline-soft); font-size: 13px; }
 .chat-msg.user { margin-left: 22px; background: #fff3ec; }
 .chat-msg p { white-space: pre-wrap; margin: 5px 0; }
 .chat-msg small { display: block; color: var(--faint); margin-top: 4px; }
+.book-citation { display: block; width: 100%; margin-top: 6px; border: 1px solid var(--course); border-radius: 7px; background: var(--warm-tint); color: var(--course-deep); padding: 7px 9px; text-align: left; }
+.book-citation:focus-visible, .book-search button:focus-visible, .book-bookmarks button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .chat-prompts { display: flex; flex-wrap: wrap; gap: 5px; }
 .chat-prompts button { font-size: 10px; border: 1px solid var(--hairline-soft); border-radius: 14px; padding: 5px 8px; background: var(--paper); }
 .chat-input { display: grid; gap: 7px; }
@@ -1292,10 +1316,21 @@ textarea.answer:focus { outline: none; border-color: var(--data); box-shadow: 0 
 @media (max-width: 900px) {
   .book-workspace { display: flex; flex-direction: column; }
   .book-main { order: 1; width: 100%; padding: 20px; }
-  .book-chat { order: 2; position: static; height: auto; min-height: 360px; border-left: 0; border-top: 1px solid var(--hairline-soft); }
+  .book-chat { order: 2; position: static; align-self: stretch; top: auto; height: auto; max-height: none; min-height: 360px; overflow: visible; border-left: 0; border-top: 1px solid var(--hairline-soft); }
+  .environment-dev .book-chat { position: static; top: auto; height: auto; scroll-margin-top: 34px; }
   .chapter-journey { order: 3; }
+  .book-reader-surface { height: 64vh; min-height: 420px; }
+  .topic-node { grid-template-columns: minmax(0, 1fr) auto; }
 }
-@media (max-width: 560px) { .book-page-head { flex-direction: column; align-items: flex-start; } }
+@media (max-width: 560px) {
+  .book-page-head { flex-direction: column; align-items: flex-start; }
+  .book-reader-toolbar { flex-wrap: wrap; }
+  .book-zoom { width: 100%; justify-content: flex-end; }
+  .book-reader-surface { min-height: 360px; padding: 12px; }
+  .book-companion-tools { grid-template-columns: 1fr; }
+  .book-search-status > button, .bookmark-list > button { grid-template-columns: auto minmax(0, 1fr); }
+  .book-search-status small { grid-column: 2; }
+}
 
 .legs { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; margin-top: 16px; }
 .legs .panel + .panel { margin-top: 0; }

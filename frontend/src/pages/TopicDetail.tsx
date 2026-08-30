@@ -15,7 +15,7 @@ function LessonToolbar({ nav, completed, onToggle }: any) {
           <span className={`prob-check${completed ? " solved" : ""}`} aria-hidden="true">✓</span>
           <span>{completed ? "Completed" : "Mark complete"}</span>
         </button>
-        <Link className="lesson-book-link" to={nav ? "/make-me-learn" : "/topics"}>
+        <Link className="lesson-book-link" to={nav ? "/read" : "/topics"}>
           ← {nav ? "Book journey" : "Syllabus"}
         </Link>
       </div>
@@ -30,7 +30,7 @@ function LessonToolbar({ nav, completed, onToggle }: any) {
         {nav.next ? <Link className="lesson-nav-link next" to={`/topics/${nav.next.id}`}>
           <span className="lesson-nav-direction">Next →</span>
           <span className="lesson-nav-title">{nav.next.title}</span>
-        </Link> : <Link className="lesson-nav-link next" to="/make-me-learn">
+        </Link> : <Link className="lesson-nav-link next" to="/read">
           <span className="lesson-nav-direction">Finish →</span>
           <span className="lesson-nav-title">Return to book journey</span>
         </Link>}
@@ -129,7 +129,7 @@ export default function TopicDetail() {
         <div className="topic-result-actions">
           <button className="btn ghost" onClick={() => { setQuizIndex(0); setQuizResults([]); }}>Retry quiz</button>
           <button className="btn ghost" onClick={() => { setQuizIndex(null); window.scrollTo({ top: 0, left: 0, behavior: "smooth" }); }}>Review lesson</button>
-          {nav?.next ? <Link className="btn primary" to={`/topics/${nav.next.id}`}>Next lesson →</Link> : <Link className="btn primary" to={nav ? "/make-me-learn" : "/topics"}>Finish →</Link>}
+          {nav?.next ? <Link className="btn primary" to={`/topics/${nav.next.id}`}>Next lesson →</Link> : <Link className="btn primary" to={nav ? "/read" : "/topics"}>Finish →</Link>}
         </div>
       </section>}
 

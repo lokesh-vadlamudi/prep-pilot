@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import re
 import time
 from datetime import datetime
@@ -20,6 +21,19 @@ from .models import Book, BookChatMessage, Card, Concept, IngestionSection, User
 log = logging.getLogger("prep.books")
 PDF_MAGIC = b"%PDF-"
 MIN_TEXT_CHARS_PER_PAGE = 40
+MAX_PAGE_CONTEXT_CHARS = 12_000
+MAX_PAGE_CONTEXT_TOKENS = 4_000
+MIN_SEARCH_CHARS = 3
+MAX_SEARCH_CHARS = 200
+MAX_SEARCH_RESULTS = 50
+SEARCH_SNIPPET_CHARS = 180
+
+
+class ReaderContextError(Exception):
+    def __init__(self, status_code: int, payload: dict):
+        super().__init__(payload.get("error", {}).get("detail", "Reader context failed"))
+        self.status_code = status_code
+        self.payload = payload
 
 
 def owned_book(session: Session, user_id: int, book_id: int) -> Book:
@@ -27,6 +41,142 @@ def owned_book(session: Session, user_id: int, book_id: int) -> Book:
     if not book:
         raise HTTPException(404, "Book not found")
     return book
+
+
+def source_pdf_path(book: Book) -> Path:
+    """Resolve only the canonical PDF path belonging to this book's owner."""
+    storage = Path(settings.book_storage_dir).resolve()
+    expected = storage / str(book.user_id) / f"{book.id}.pdf"
+    try:
+        path = Path(book.storage_path)
+        resolved = path.resolve(strict=True)
+        owner_dir = expected.parent.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(404, "Book file is unavailable") from exc
+    if resolved != expected.resolve(strict=True):
+        raise HTTPException(404, "Book file is unavailable")
+    if not resolved.is_file() or owner_dir.parent != storage or not resolved.is_relative_to(owner_dir):
+        raise HTTPException(404, "Book file is unavailable")
+    return resolved
+
+
+def deletion_pdf_path(book: Book) -> Path:
+    """Validate the canonical path before delete-side database mutation."""
+    storage = Path(settings.book_storage_dir).resolve()
+    expected = storage / str(book.user_id) / f"{book.id}.pdf"
+    try:
+        declared = Path(book.storage_path).resolve(strict=False)
+        resolved = expected.resolve(strict=False)
+        owner_dir = expected.parent.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(404, "Book file is unavailable") from exc
+    if declared != resolved or owner_dir.parent != storage or not resolved.is_relative_to(owner_dir):
+        raise HTTPException(404, "Book file is unavailable")
+    if resolved.exists() and not resolved.is_file():
+        raise HTTPException(404, "Book file is unavailable")
+    return resolved
+
+
+def page_text(book: Book, page_number: int) -> str:
+    if page_number < 1 or page_number > book.page_count:
+        raise HTTPException(404, "Page not found")
+    try:
+        with fitz.open(source_pdf_path(book)) as document:
+            text = document.load_page(page_number - 1).get_text().strip()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(422, "Book page could not be read") from exc
+    if not text:
+        raise ReaderContextError(409, {"error": {
+            "code": "page_text_unavailable",
+            "detail": "This page has no extractable text.",
+            "retryable": False,
+            "page": page_number,
+        }})
+    return text
+
+
+def estimated_tokens(text: str) -> int:
+    return math.ceil(len(text.encode("utf-8")) / 3)
+
+
+def validate_page_context(text: str, page: int = 1) -> str:
+    if len(text) <= MAX_PAGE_CONTEXT_CHARS and estimated_tokens(text) <= MAX_PAGE_CONTEXT_TOKENS:
+        return text
+    raise ReaderContextError(422, {"error": {
+        "code": "page_context_too_large",
+        "detail": "This page is too large for exact-page chat.",
+        "retryable": False,
+        "page": page,
+        "limits": {"characters": MAX_PAGE_CONTEXT_CHARS, "estimated_tokens": MAX_PAGE_CONTEXT_TOKENS},
+    }})
+
+
+def render_page(book: Book, page_number: int) -> bytes:
+    """Render one bounded page for the reader instead of exposing the whole file."""
+    if page_number < 1 or page_number > book.page_count:
+        raise HTTPException(404, "Page not found")
+    try:
+        with fitz.open(source_pdf_path(book)) as document:
+            page = document.load_page(page_number - 1)
+            page_pixels = max(page.rect.width * page.rect.height, 1)
+            scale = min(1.6, (10_000_000 / page_pixels) ** 0.5)
+            return page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False).tobytes("png")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(422, "Book page could not be rendered") from exc
+
+
+def normalize_search_text(value: str) -> str:
+    return " ".join(value.split())
+
+
+def validate_search_query(query: str) -> str:
+    normalized = normalize_search_text(query)
+    if MIN_SEARCH_CHARS <= len(normalized) <= MAX_SEARCH_CHARS:
+        return normalized
+    raise ReaderContextError(422, {"error": {
+        "code": "invalid_search_query",
+        "detail": "Search must be 3-200 characters after whitespace normalization.",
+        "retryable": False,
+    }})
+
+
+def _search_snippet(text: str, folded_query: str) -> str:
+    start = text.casefold().find(folded_query)
+    left = max(0, start - SEARCH_SNIPPET_CHARS // 2)
+    right = min(len(text), start + len(folded_query) + SEARCH_SNIPPET_CHARS // 2)
+    prefix = "…" if left else ""
+    suffix = "…" if right < len(text) else ""
+    return f"{prefix}{text[left:right].strip()}{suffix}"
+
+
+def search_pdf(book: Book, normalized_query: str) -> tuple[list[dict], bool]:
+    folded_query = normalized_query.casefold()
+    results: list[dict] = []
+    try:
+        with fitz.open(source_pdf_path(book)) as document:
+            page_limit = min(document.page_count, settings.max_book_pages)
+            for index in range(page_limit):
+                page = document.load_page(index)
+                text = normalize_search_text(page.get_text())
+                count = text.casefold().count(folded_query)
+                if not count:
+                    continue
+                if len(results) == MAX_SEARCH_RESULTS:
+                    return results, True
+                results.append({
+                    "page": index + 1,
+                    "snippet": _search_snippet(text, folded_query),
+                    "match_count": count,
+                })
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(422, "Book could not be searched") from exc
+    return results, False
 
 
 async def save_upload(session: Session, user: User, upload: UploadFile) -> Book:

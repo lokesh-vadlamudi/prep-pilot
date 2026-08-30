@@ -85,6 +85,17 @@ _COURSE_SCHEMA = {
         ("user_id", "course_key", "operation", "request_id"),
     ),
 }
+_READER_SCHEMA_MARKER = "book_reader_schema_v1"
+_READER_SCHEMA = {
+    "bookreadingprogress": (
+        {"user_id", "book_id", "page_number", "updated_at"},
+        ("user_id", "book_id"),
+    ),
+    "bookbookmark": (
+        {"user_id", "book_id", "page_number", "note", "created_at", "updated_at"},
+        ("user_id", "book_id", "page_number"),
+    ),
+}
 
 
 def _migrate() -> None:
@@ -100,9 +111,14 @@ def _migrate() -> None:
         _rebuild_unique_indexes(conn)
         _backfill_audience(conn)
         _validate_course_schema(conn)
+        _validate_reader_schema(conn)
         conn.exec_driver_sql(
             "INSERT OR IGNORE INTO _meta (key, value) VALUES (?, datetime('now'))",
             (_COURSE_SCHEMA_MARKER,),
+        )
+        conn.exec_driver_sql(
+            "INSERT OR IGNORE INTO _meta (key, value) VALUES (?, datetime('now'))",
+            (_READER_SCHEMA_MARKER,),
         )
     _migrate_multiuser()
 
@@ -123,6 +139,22 @@ def _validate_course_schema(conn) -> None:
             raise RuntimeError(f"course schema {table} lacks unique index {unique_columns}")
     if not _course_link_has_match_kind_check(conn):
         raise RuntimeError("course schema coursecontentlink lacks match_kind constraint")
+
+
+def _validate_reader_schema(conn) -> None:
+    """Fail startup if additive private-reader tables are incomplete."""
+    for table, (required, unique_columns) in _READER_SCHEMA.items():
+        columns = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
+        if not required.issubset(columns):
+            missing = ", ".join(sorted(required - columns))
+            raise RuntimeError(f"reader schema {table} is missing: {missing}")
+        indexes = conn.exec_driver_sql(f"PRAGMA index_list({table})").fetchall()
+        unique_sets = {
+            tuple(item[2] for item in conn.exec_driver_sql(f"PRAGMA index_info({row[1]})"))
+            for row in indexes if row[2]
+        }
+        if unique_columns not in unique_sets:
+            raise RuntimeError(f"reader schema {table} lacks unique index {unique_columns}")
 
 
 def _course_link_has_match_kind_check(conn) -> bool:

@@ -32,6 +32,7 @@ _scheduler = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _scheduler
+    settings.require_dev_storage_isolation(BASE_DIR)
     init_db()
     with Session(engine) as session:
         added = seed_database(session)
@@ -103,6 +104,7 @@ def health():
         "environment": settings.environment,
         "release": settings.release,
         "scheduler_enabled": settings.scheduler_enabled,
+        **settings.dev_storage_attestation(BASE_DIR),
     }
 
 
