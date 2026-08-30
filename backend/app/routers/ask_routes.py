@@ -1,11 +1,12 @@
 """Free-form 'ask the tutor' + on-demand content generation."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from ..auth import RequireUser
 from ..models import User
+from ..ratelimit import require_shared_ai_rate
 from .. import tutor, scheduler, llm
 
 router = APIRouter(prefix="/api", tags=["ask"], dependencies=[RequireUser])
@@ -17,7 +18,7 @@ class AskIn(BaseModel):
     history: list[dict] = Field(default_factory=list, max_length=20)
 
 
-@router.post("/ask")
+@router.post("/ask", dependencies=[Depends(require_shared_ai_rate)])
 async def ask(body: AskIn, user: User = RequireUser):
     answer = await tutor.answer_question(
         body.question, body.context, body.history, learner=tutor.learner_context(user))
@@ -36,4 +37,5 @@ async def generate_now(per_track: int = Query(1, ge=1, le=5), user: User = Requi
 
 @router.get("/brain-health")
 async def brain_health():
-    return {"online": await llm.health(), "model": llm.settings.model}
+    online, model = await llm.model_status()
+    return {"online": online, "model": model}
