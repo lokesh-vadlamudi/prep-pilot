@@ -219,6 +219,50 @@ describe("Read a book", () => {
     expect(screen.queryByText("rendering page")).toBeNull();
   });
 
+  it("prioritizes the page with focus, fit, and keyboard-resizable chat controls", async () => {
+    render(<MemoryRouter><MakeMeLearn /></MemoryRouter>);
+    const image = await screen.findByAltText("Page 1 of Inference Engineering");
+    const workspace = image.closest(".book-workspace") as HTMLElement;
+    const reader = image.closest(".book-reader") as HTMLElement;
+    const surface = image.closest(".book-reader-surface") as HTMLElement;
+
+    expect(screen.getByRole("link", { name: "Back to PrepPilot" })).toHaveAttribute("href", "/");
+    expect(workspace.style.getPropertyValue("--book-chat-width")).toBe("420px");
+    const separator = screen.getByRole("separator", { name: "Resize DGX chat" });
+    Object.assign(separator, { setPointerCapture: vi.fn(), releasePointerCapture: vi.fn() });
+    fireEvent.keyDown(separator, { key: "Home" });
+    fireEvent.keyDown(separator, { key: "ArrowLeft" });
+    expect(workspace.style.getPropertyValue("--book-chat-width")).toBe("444px");
+    fireEvent.keyDown(separator, { key: "ArrowRight" });
+    expect(workspace.style.getPropertyValue("--book-chat-width")).toBe("420px");
+    fireEvent.pointerMove(separator, { clientX: 0, pointerId: 1 });
+    expect(workspace.style.getPropertyValue("--book-chat-width")).toBe("420px");
+    fireEvent.pointerDown(separator, { pointerId: 1 });
+    fireEvent.pointerMove(separator, { clientX: 0, pointerId: 1 });
+    expect(workspace.style.getPropertyValue("--book-chat-width")).toBe("512px");
+    fireEvent.pointerMove(separator, { clientX: 1000, pointerId: 1 });
+    expect(workspace.style.getPropertyValue("--book-chat-width")).toBe("340px");
+    fireEvent.pointerUp(separator, { pointerId: 1 });
+    fireEvent.pointerDown(separator, { pointerId: 2 });
+    fireEvent.pointerCancel(separator, { pointerId: 2 });
+
+    fireEvent.click(screen.getByRole("button", { name: "Fit page" }));
+    expect(image).toHaveClass("fit-page");
+    fireEvent.click(screen.getByRole("button", { name: "Fit width" }));
+    expect(image).toHaveClass("fit-width");
+
+    const focus = screen.getByRole("button", { name: "Enter reading focus" });
+    fireEvent.click(focus);
+    expect(workspace).toHaveClass("is-reading-focus");
+    const exitFocus = screen.getByRole("button", { name: "Exit reading focus" });
+    expect(exitFocus).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(exitFocus);
+    expect(workspace).not.toHaveClass("is-reading-focus");
+
+    expect(surface.nextElementSibling).toHaveClass("book-companion-tools");
+    expect(reader.compareDocumentPosition(document.querySelector(".book-overview") as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("shows bookmark, search, DGX, and clear-chat unhappy paths without losing the page", async () => {
     vi.mocked(api.bookReaderState).mockResolvedValueOnce({
       book_id: 7, page: 1, progress_updated_at: null,

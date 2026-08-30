@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type BookBookmark, type BookSearchResult } from "../api";
 
@@ -54,6 +54,11 @@ function chatFailureText(error: unknown): string {
   return "DGX could not answer from this scope. Your page is preserved; retry when DGX is available.";
 }
 
+function clampChatWidth(value: number): number {
+  const maximum = Math.min(620, Math.max(340, window.innerWidth * 0.5));
+  return Math.min(Math.max(value, 340), maximum);
+}
+
 export default function MakeMeLearn() {
   const [books, setBooks] = useState<Book[]>([]);
   const [active, setActive] = useState<Book | null>(null);
@@ -66,6 +71,9 @@ export default function MakeMeLearn() {
   const [sectionId, setSectionId] = useState<number | undefined>();
   const [page, setPage] = useState(1);
   const [zoom, setZoom] = useState(100);
+  const [pageFit, setPageFit] = useState<"width" | "page" | "custom">("width");
+  const [readingFocus, setReadingFocus] = useState(false);
+  const [chatWidth, setChatWidth] = useState(420);
   const [pageLoading, setPageLoading] = useState(false);
   const [pageError, setPageError] = useState("");
   const [pageReload, setPageReload] = useState(0);
@@ -89,6 +97,7 @@ export default function MakeMeLearn() {
   const searchTokenRef = useRef(0);
   const searchControllerRef = useRef<AbortController | null>(null);
   const searchTimerRef = useRef<number | null>(null);
+  const resizingChatRef = useRef(false);
   const progressPendingRef = useRef<{ bookId: number; page: number } | null>(null);
   const progressSavingRef = useRef(false);
 
@@ -163,7 +172,7 @@ export default function MakeMeLearn() {
   async function selectBook(id: number) {
     loadTokenRef.current += 1;
     activeRef.current = null; setActive(null);
-    setPage(1); setZoom(100); setSectionId(undefined); setScope("page"); resetTransient();
+    setPage(1); setZoom(100); setPageFit("width"); setSectionId(undefined); setScope("page"); resetTransient();
     try { await refresh(id); }
     catch { setError("Could not load that book."); }
   }
@@ -280,27 +289,35 @@ export default function MakeMeLearn() {
   }
 
   const currentBookmark = bookmarks.find((item) => item.page === page);
+  const workspaceStyle = { "--book-chat-width": `${chatWidth}px` } as CSSProperties;
 
-  return <div className="book-workspace">
+  return <div className={`book-workspace${readingFocus ? " is-reading-focus" : ""}`} style={workspaceStyle}>
     <div className="book-main">
-      <header className="page-head book-page-head"><div><span className="eyebrow">PRIVATE READER</span><h1>Read a book</h1><p>Keep the page in view and ask the DGX questions grounded in exactly what you are reading.</p></div>
+      <header className="book-page-head book-overlay-head"><Link className="btn" to="/" aria-label="Back to PrepPilot">← PrepPilot</Link><div><span className="eyebrow">PRIVATE READER</span><h1>Read a book</h1>{active && <small>{active.title} · page {page} of {active.page_count}</small>}</div>
         <label className="btn primary">{busy ? "Importing…" : "Add PDF"}<input hidden type="file" accept="application/pdf,.pdf" disabled={busy} onChange={(event) => upload(event.target.files?.[0])} /></label>
       </header>
       {error && <div className="notice error" role="status">{error}</div>}
       {!books.length && <section className="panel book-empty"><h2>Your private library is empty</h2><p>Add a digitally readable PDF. Processing stays on the Mac mini and private DGX; OCR is not included yet.</p><p className="muted">Maximum 50 MB and 500 pages. Only upload material you have rights to process.</p></section>}
       {!!books.length && <div className="book-picker" aria-label="Your books">{books.map((book) => <button className={active?.id === book.id ? "active" : ""} key={book.id} onClick={() => selectBook(book.id)}>{book.title}<small>{book.page_count} pages · {book.status}</small></button>)}</div>}
 
-      {active && <section className="panel book-overview"><div><span className="eyebrow">{active.status}</span><h2>{active.title}</h2><p>{active.page_count} pages · {active.generated_lessons} optional lessons ready{active.failed_sections ? ` · ${active.failed_sections} section needs retry` : ""}</p></div>
-        {!active.activated && ["ready", "partial"].includes(active.status) && <button className="btn" onClick={async () => { await api.activateBook(active.id); await refreshStatus(active.id); }}>Add lessons to syllabus</button>}
-        {active.status === "partial" && <button className="btn" onClick={async () => { await api.retryBook(active.id); await refreshStatus(active.id); }}>Retry failed section</button>}
-      </section>}
-
       {active && <section className="panel book-reader" ref={readerRef} aria-label={`Reading ${active.title}`}>
         <div className="book-reader-toolbar">
-          <button className="btn" onClick={() => goToPage(page - 1)} disabled={page <= 1} aria-label="Previous page">←</button>
-          <label>Page <input aria-label="Page number" type="number" min={1} max={active.page_count} value={page} onChange={(event) => goToPage(Number(event.target.value))} /> of {active.page_count}</label>
-          <button className="btn" onClick={() => goToPage(page + 1)} disabled={page >= active.page_count} aria-label="Next page">→</button>
-          <div className="book-zoom" role="group" aria-label="Page zoom"><button className="btn" onClick={() => setZoom((value) => Math.max(70, value - 10))} aria-label="Zoom out">−</button><span>{zoom}%</span><button className="btn" onClick={() => setZoom((value) => Math.min(180, value + 10))} aria-label="Zoom in">+</button></div>
+          <div className="book-page-nav">
+            <button className="btn" onClick={() => goToPage(page - 1)} disabled={page <= 1} aria-label="Previous page">←</button>
+            <label>Page <input aria-label="Page number" type="number" min={1} max={active.page_count} value={page} onChange={(event) => goToPage(Number(event.target.value))} /> / {active.page_count}</label>
+            <button className="btn" onClick={() => goToPage(page + 1)} disabled={page >= active.page_count} aria-label="Next page">→</button>
+          </div>
+          <div className="book-zoom" role="group" aria-label="Page zoom"><button className="btn" onClick={() => { setPageFit("custom"); setZoom((value) => Math.max(70, value - 10)); }} aria-label="Zoom out">−</button><span>{zoom}%</span><button className="btn" onClick={() => { setPageFit("custom"); setZoom((value) => Math.min(180, value + 10)); }} aria-label="Zoom in">+</button></div>
+          <div className="book-view-controls" role="group" aria-label="Reader view">
+            <button className="btn" onClick={() => { setPageFit("width"); setZoom(100); }} aria-label="Fit width" aria-pressed={pageFit === "width"}>Width</button>
+            <button className="btn" onClick={() => setPageFit("page")} aria-label="Fit page" aria-pressed={pageFit === "page"}>Page</button>
+            <button className="btn reader-focus-toggle" onClick={() => setReadingFocus((value) => !value)} aria-pressed={readingFocus} aria-label={readingFocus ? "Exit reading focus" : "Enter reading focus"}>{readingFocus ? "Exit" : "Focus"}</button>
+          </div>
+        </div>
+        <div className="book-reader-surface">
+          {pageLoading && !pageError && <span className="loading book-page-loading">rendering page</span>}
+          {pageError && <div className="notice error">{pageError}<button className="btn" onClick={() => setPageReload((value) => value + 1)}>Retry page render</button></div>}
+          <img className={`book-page-image fit-${pageFit}`} key={`${active.id}-${page}-${pageReload}`} src={api.bookPageUrl(active.id, page)} alt={`Page ${page} of ${active.title}`} style={pageFit === "custom" ? { width: `${zoom}%` } : undefined} onLoad={() => setPageLoading(false)} onError={() => { setPageLoading(false); setPageError("This page could not be rendered."); }} />
         </div>
         <div className="book-companion-tools">
           <form className="book-search" onSubmit={(event) => { event.preventDefault(); submitSearch(); }}>
@@ -316,15 +333,22 @@ export default function MakeMeLearn() {
             {!!bookmarks.length && <div className="bookmark-list" aria-label="Bookmarks">{bookmarks.map((bookmark) => <button key={bookmark.page} onClick={() => goToPage(bookmark.page)} aria-label={`Go to bookmarked page ${bookmark.page}`}><strong>Page {bookmark.page}</strong>{bookmark.note && <span>{bookmark.note}</span>}</button>)}</div>}
           </div>
         </div>
-        <div className="book-reader-surface">
-          {pageLoading && !pageError && <span className="loading book-page-loading">rendering page</span>}
-          {pageError && <div className="notice error">{pageError}<button className="btn" onClick={() => setPageReload((value) => value + 1)}>Retry page render</button></div>}
-          <img key={`${active.id}-${page}-${pageReload}`} src={api.bookPageUrl(active.id, page)} alt={`Page ${page} of ${active.title}`} style={{ width: `${zoom}%` }} onLoad={() => setPageLoading(false)} onError={() => { setPageLoading(false); setPageError("This page could not be rendered."); }} />
+      </section>}
+
+      {active && <section className="panel book-overview"><details><summary aria-label={`Book details for ${active.title}`}><span><span className="eyebrow">{active.status}</span><strong>{active.title}</strong><small>{active.page_count} pages · {active.generated_lessons} optional lessons ready{active.failed_sections ? ` · ${active.failed_sections} section needs retry` : ""}</small></span><span>Book details</span></summary><p>Generated lessons are optional; reading, search, bookmarks, and grounded page chat work independently.</p></details>
+        <div className="book-overview-actions">{!active.activated && ["ready", "partial"].includes(active.status) && <button className="btn" onClick={async () => { await api.activateBook(active.id); await refreshStatus(active.id); }}>Add lessons to syllabus</button>}
+          {active.status === "partial" && <button className="btn" onClick={async () => { await api.retryBook(active.id); await refreshStatus(active.id); }}>Retry failed section</button>}
         </div>
       </section>}
     </div>
 
-    <aside className="book-chat"><div className="book-chat-head"><div><span className="eyebrow">DGX · GROUNDED</span><h2 tabIndex={-1}>{active && scope === "page" ? `Ask page ${page}` : "Ask this book"}</h2></div>
+    <aside className="book-chat"><div className="book-chat-resizer" role="separator" aria-label="Resize DGX chat" aria-orientation="vertical" aria-valuemin={340} aria-valuemax={Math.round(Math.min(620, Math.max(340, window.innerWidth * 0.5)))} aria-valuenow={chatWidth} tabIndex={0}
+        onKeyDown={(event) => { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); setChatWidth((value) => clampChatWidth(value + (event.key === "ArrowLeft" ? 24 : -24))); } }}
+        onPointerDown={(event) => { resizingChatRef.current = true; event.currentTarget.setPointerCapture(event.pointerId); }}
+        onPointerMove={(event) => { if (resizingChatRef.current) setChatWidth(clampChatWidth(window.innerWidth - event.clientX)); }}
+        onPointerUp={(event) => { resizingChatRef.current = false; event.currentTarget.releasePointerCapture(event.pointerId); }}
+        onPointerCancel={() => { resizingChatRef.current = false; }} />
+      <div className="book-chat-head"><div><span className="eyebrow">DGX · GROUNDED</span><h2 tabIndex={-1}>{active && scope === "page" ? `Ask page ${page}` : "Ask this book"}</h2></div>
         {confirmingClear ? active ? <div className="clear-confirm"><span>Clear all messages for <em>{active.title}</em>?</span><div className="clear-confirm-actions"><button className="btn" ref={confirmBtnRef} onClick={clearChat} disabled={clearing || busy}>Clear</button><button className="btn" onClick={() => setConfirmingClear(false)} disabled={clearing || busy}>Cancel</button></div></div> : null : messages.length > 0 ? <button className="btn clear-chat-btn" ref={triggerRef} onClick={() => setConfirmingClear(true)} disabled={busy || clearing}>Clear chat</button> : null}
       </div>
       {!active ? <p className="muted">Add or select a book to begin.</p> : <>
